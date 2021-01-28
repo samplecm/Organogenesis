@@ -2,7 +2,6 @@ import numpy as np
 import pydicom
 from pydicom import dcmread
 import pickle
-import json
 import os
 import glob
 import pathlib
@@ -13,6 +12,7 @@ from operator import itemgetter
 import matplotlib.pyplot as plt
 import Preprocessing
 import open3d as o3d
+from fastDamerauLevenshtein import damerauLevenshtein
 
 #Want to have a function that checks for a structure in patients' structure sets, and obtains the contours
 def GetTrainingData(patientsPath, organ, save=True):
@@ -198,29 +198,29 @@ def GetTrainingData(patientsPath, organ, save=True):
             #combinedData[2,zSlice,:,:] = backgroundImages[zSlice]
         
         #Now also get the contour for plotting
-        body, bodyROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), "body")
-        numContourPoints = 0 
-        bodyContours = []
-        sliceNum = 0
-        for contourInfo in structsMeta:
-            if contourInfo.get("ReferencedROINumber") == bodyROINum:
-                for contoursequence in contourInfo.ContourSequence: #take away 0!!
-                    sliceNum += 1
-                    if sliceNum % 2 == 0:
-                        continue #take every second slice for imaging
-                    bodyContours.append(contoursequence.ContourData)
-                    #But this is easier to work with if we convert from a 1d to a 2d list for contours
-                    tempContour = []
-                    i = 0
-                    while i < len(bodyContours[-1]):
-                        x = float(bodyContours[-1][i])
-                        y = float(bodyContours[-1][i + 1])
-                        z = float(bodyContours[-1][i + 2])
-                        tempContour.append([x, y, z ])
-                        i += 3
-                        pointListy = np.vstack((pointListy, np.array([x,y,z])))
-                        numContourPoints+=1       
-                    bodyContours[-1] = tempContour    
+        # body, bodyROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), "body")
+        # numContourPoints = 0 
+        # bodyContours = []
+        # sliceNum = 0
+        # for contourInfo in structsMeta:
+        #     if contourInfo.get("ReferencedROINumber") == bodyROINum:
+        #         for contoursequence in contourInfo.ContourSequence: #take away 0!!
+        #             sliceNum += 1
+        #             if sliceNum % 2 == 0:
+        #                 continue #take every second slice for imaging
+        #             bodyContours.append(contoursequence.ContourData)
+        #             #But this is easier to work with if we convert from a 1d to a 2d list for contours
+        #             tempContour = []
+        #             i = 0
+        #             while i < len(bodyContours[-1]):
+        #                 x = float(bodyContours[-1][i])
+        #                 y = float(bodyContours[-1][i + 1])
+        #                 z = float(bodyContours[-1][i + 2])
+        #                 tempContour.append([x, y, z ])
+        #                 i += 3
+        #                 pointListy = np.vstack((pointListy, np.array([x,y,z])))
+        #                 numContourPoints+=1       
+        #             bodyContours[-1] = tempContour    
         print("Plotting")
         #Here we plot a 3d image of the pointcloud from the list of masks. 
         #First need to convert the masks to contours: 
@@ -469,27 +469,7 @@ def AllowedToMatch(s1, s2):
 
 
 def StringDistance(s1, s2):
-    d = {}
-    lenstr1 = len(s1)
-    lenstr2 = len(s2)
-    for i in range(-1,lenstr1+1):
-        d[(i,-1)] = i+1
-    for j in range(-1,lenstr2+1):
-        d[(-1,j)] = j+1
-
-    for i in range(lenstr1):
-        for j in range(lenstr2):
-            if s1[i] == s2[j]:
-                cost = 0
-            else:
-                cost = 1
-            d[(i,j)] = min(
-                           d[(i-1,j)] + 1, # deletion
-                           d[(i,j-1)] + 1, # insertion
-                           d[(i-1,j-1)] + cost, # substitution
-                          )
-            if i and j and s1[i]==s2[j-1] and s1[i-1] == s2[j]:
-                d[(i,j)] = min (d[(i,j)], d[i-2,j-2] + cost) # transposition
+    return damerauLevenshtein(s1,s2,similarity=False)
 
     return d[lenstr1-1,lenstr2-1]
 def LongestSubstring(s1,s2):
