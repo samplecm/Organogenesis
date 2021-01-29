@@ -74,7 +74,16 @@ def MaskToContour(image):
             for point in contours[contour_idx]:
                 combinedContours.append(point)
         return edges,  combinedContours        
-    
+
+def AddZToContours(contours, zValues):
+    #currently contours is only x and y values, but need to add zValue to each point in each layer. 
+    if len(contours) == 0:
+        return contours
+    for layer in range(len(contours)):    
+        for point_idx in range(len(contours[layer])):
+            contours[layer][point_idx] = [contours[layer][point_idx][0],contours[layer][point_idx][1],int(zValues[layer])]
+        return contours
+
 
 def GetMaskContour(image):
     #take an image of a mask and convert to a list of points describing the contour, as needed to construct a dicom file.

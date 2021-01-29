@@ -278,6 +278,7 @@ def GetPredictionData(patientFileName,organ):
     #also need the pixel spacing
     pixelSpacing = dcmread(patient_CTs[0]).get("PixelSpacing")
     sliceThickness = dcmread(patient_CTs[0]).get("SliceThickness")
+
     #Now I want numpy arrays of all these CT images. I save these in a list, where each element is itself a list, with index 0: CT image, index 1: z-value for that slice
     CTs = []
     ssFactor = 1 #at the moment don't need to upsample
@@ -289,78 +290,77 @@ def GetPredictionData(patientFileName,organ):
         if resizedArray.max() > 2500:
             resizedArray = np.clip(resizedArray, -1000, 2700)
         resizedArray = NormalizeImage(resizedArray) 
-        CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient").value[2]])
-
-    CTs.sort(key=lambda x:x[1]) #not necessarily in order, so sort according to z-slice.
+        CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness])
+    CTs.sort(key=lambda x:x[1][2]) #not necessarily in order, so sort according to z-slice.
 
 
     #Now get contours if exist  
-    try:  
-        structFile = os.path.join(patientPath, structFile)
-        structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-        structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
-        structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-        #print(dcmread(patient1_Struct[0]).data_element("ROIContourSequence")[0])
-        contours = []
-        for contourInfo in structsMeta:
-            if contourInfo.get("ReferencedROINumber") == structureROINum:
-                for contoursequence in contourInfo.ContourSequence: #take away 0!!
-                    contours.append(contoursequence.ContourData)
-                    #But this is easier to work with if we convert from a 1d to a 2d list for contours
-                    tempContour = []
-                    i = 0
-                    while i < len(contours[-1]):
-                        x = float(contours[-1][i])
-                        y = float(contours[-1][i + 1])
-                        z = float(contours[-1][i + 2])
-                        tempContour.append([x, y, z ])
-                        i += 3
-                    contours[-1] = tempContour    
-        #Right now I need the contour points in terms of the image dimensions so that they can be turned into an image for training:
-        contourIndices = MakeContourImage(ipp, pixelSpacing, contours)
-        #Now need to make images of the same size as CTs, with just contours showing 
-        contourImages = []
-        combinedImages = []
-        backgroundImages = []
-        contourOnPlane = np.zeros((len(CTs),1))
-        xLen = np.size(CTs[0][0], axis = 0)
-        yLen = np.size(CTs[0][0], axis = 1)
-        for idx, CT in enumerate(CTs):            
-            contourOnImage = False #keep track if a contour is on this image, if not just add a blank image.          
-            #Now need to add the contour polygon to this image, if one exists on the current layer
-            #loop over contours to check if z-value matches current CT.
-            for contour in contourIndices:
-                if contour[0][2] == CT[1]:    #if the contour is on the current slice
-                    contourOnPlane[idx] = 1
-                    contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
-                    backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
-                    #combinedImage = Image.fromarray(CT[0])
-                    contourPoints = []
-                    #now add all contour points to contourPoints as Point objects
-                    for pointList in contour:
-                        contourPoints.append((int(pointList[0]), int(pointList[1])))
-                    contourPolygon = Polygon(contourPoints)
-                    ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1)
-                    #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
-                    ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
-                    contourImage = np.array(contourImage)
-                    contourImages.append(contourImage)
-                    # combinedImage = np.array(combinedImage)
-                    # combinedImages.append(combinedImage)
-                    backgroundImage = np.array(backgroundImage)
-                    backgroundImages.append(backgroundImage)
-                    contourOnImage = True
-                    break
-            if not contourOnImage:
-                #if no contour on that layer, add just zeros array
-                contourImage = np.zeros((xLen,yLen))
+    # try:  
+    structFile = os.path.join(patientPath, structFile)
+    structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+    structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
+    structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+    #print(dcmread(patient1_Struct[0]).data_element("ROIContourSequence")[0])
+    contours = []
+    for contourInfo in structsMeta:
+        if contourInfo.get("ReferencedROINumber") == structureROINum:
+            for contoursequence in contourInfo.ContourSequence: #take away 0!!
+                contours.append(contoursequence.ContourData)
+                #But this is easier to work with if we convert from a 1d to a 2d list for contours
+                tempContour = []
+                i = 0
+                while i < len(contours[-1]):
+                    x = float(contours[-1][i])
+                    y = float(contours[-1][i + 1])
+                    z = float(contours[-1][i + 2])
+                    tempContour.append([x, y, z ])
+                    i += 3    
+                contours[-1] = tempContour 
+    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "wb") as fp:
+        pickle.dump(contours, fp)                             
+    contourIndices = DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
+    #Now need to make images of the same size as CTs, with just contours showing 
+    contourImages = []
+    combinedImages = []
+    backgroundImages = []
+    contourOnPlane = np.zeros((len(CTs),1))
+    xLen = np.size(CTs[0][0], axis = 0)
+    yLen = np.size(CTs[0][0], axis = 1)
+    for idx, CT in enumerate(CTs):            
+        contourOnImage = False #keep track if a contour is on this image, if not just add a blank image.          
+        #Now need to add the contour polygon to this image, if one exists on the current layer
+        #loop over contours to check if z-value matches current CT.
+        for contour in contourIndices:
+            if contour[0][2] == CT[1]:    #if the contour is on the current slice
+                contourOnPlane[idx] = 1
+                contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
+                backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
+                #combinedImage = Image.fromarray(CT[0])
+                contourPoints = []
+                #now add all contour points to contourPoints as Point objects
+                for pointList in contour:
+                    contourPoints.append((int(pointList[0]), int(pointList[1])))
+                contourPolygon = Polygon(contourPoints)
+                ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1)
+                #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
+                ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
+                contourImage = np.array(contourImage)
                 contourImages.append(contourImage)
-                backgroundImage = np.ones((xLen, yLen))
+                # combinedImage = np.array(combinedImage)
+                # combinedImages.append(combinedImage)
+                backgroundImage = np.array(backgroundImage)
                 backgroundImages.append(backgroundImage)
-        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "wb") as fp:
-            pickle.dump(contourImages, fp)         
-    except:
-        print("No existing DICOM contour data found for this patient")
+                contourOnImage = True
+                break
+        if not contourOnImage:
+            #if no contour on that layer, add just zeros array
+            contourImage = np.zeros((xLen,yLen))
+            contourImages.append(contourImage)
+            backgroundImage = np.ones((xLen, yLen))
+            backgroundImages.append(backgroundImage)
+         
+    # except:
+    #     print("No existing DICOM contour data found for this patient")
 
         
     #print(dcmread(patient1_Struct[0]).data_element("ROIContourSequence")[0]) 
@@ -526,7 +526,7 @@ def ImageUpsizer(array, factor):
                 insert += 1
     return newArray
 
-def MakeContourImage(IPP, pixelSpacing, contours):
+def DICOM_to_Image_Coordinates(IPP, pixelSpacing, contours):
     #Need to go throug each contour point and convert x and y values to integer values indicating image indices
     for contour in contours:
         for point in contour:
@@ -534,7 +534,21 @@ def MakeContourImage(IPP, pixelSpacing, contours):
             point[1] = round((point[1] - IPP[1]) / pixelSpacing[1]) 
     return contours        
 
+def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness):
+    #Take the contours defined by pixel values in the 512x512 array and convert these into cartesian coordinates as in the dicom system
+    newContours = []
+    for layer in range(len(contours)): 
+        newContours.append([])
+        if len(contours[layer]) > 0:
+            for point in contours[layer]:
+                x  = (point[0] * pixelSpacing[0]) + ipp[0]
+                y  = (point[1] * pixelSpacing[1]) + ipp[1]
+                z = zValues[layer]
+                newContours[-1].append([x,y,z])
+    return newContours        
 
+
+    return contours
 if __name__ == "__main__":
     print("Main Method of DicomParsing.py")
     patientsPath = 'Patient_Files/'

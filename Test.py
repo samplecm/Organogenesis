@@ -263,13 +263,15 @@ def PlotPatientContours(contours, existingContours):
             for point_idx in range(len(contours[layer_idx])):
                 x = contours[layer_idx][point_idx][0]
                 y = contours[layer_idx][point_idx][1]
-                z = layer_idx * 2.5
+                z = contours[layer_idx][point_idx][2]
+                #print([x,y,z])
                 points.append([x,y,z])
                 if (numPoints > 0):
                     pointList = np.vstack((pointList, np.array([x,y,z])))
                 else:
                     pointList = np.array([x,y,z])   
                 numPoints+=1  
+              
     orig_stdout = sys.stdout            
     # with open(os.path.join(pathlib.Path(__file__).parent.absolute(),'pointCloud_LPar.txt'), 'w') as f:
     #     sys.stdout = f
@@ -280,18 +282,16 @@ def PlotPatientContours(contours, existingContours):
     for layer_idx in range(len(existingContours)):
         if len(existingContours[layer_idx]) > 0:
             for point_idx in range(len(existingContours[layer_idx])):
-                x = existingContours[layer_idx][point_idx][0] - 30
-                y = existingContours[layer_idx][point_idx][1] - 30
-                z = layer_idx * 2.5
+                x = existingContours[layer_idx][point_idx][0]-25
+                y = existingContours[layer_idx][point_idx][1]
+                z = existingContours[layer_idx][point_idx][2]
                 
+                #print([x,y,z])
                 if (numPoints > 0):
                     pointList = np.vstack((pointList, np.array([x,y,z])))
                 else:
                     pointList = np.array([x,y,z])   
-                numPoints+=1              
-            # print(z)    
-    print(pointList[0,:])
-    print(numPoints)              
+                numPoints+=1                                          
     pointCloud.points = o3d.utility.Vector3dVector(pointList[:,:3])
     o3d.visualization.draw_geometries([pointCloud])
 

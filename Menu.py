@@ -46,7 +46,7 @@ def main():
 
         Test.TestPlot(OARs[chosenOAR], threshold=0.1)  
     elif task == 2:    
-        Predict.GetPatientContours(OARs[chosenOAR],"P85", threshold = 0.3, withReal=True) 
+        Predict.GetContours(OARs[chosenOAR],"P7", threshold = 0.125, withReal=True, tryLoad=False) 
     elif task == 3:
         Test.Best_Threshold(OARs[chosenOAR],  testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
