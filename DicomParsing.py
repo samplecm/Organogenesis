@@ -14,6 +14,7 @@ import Preprocessing
 import open3d as o3d
 from fastDamerauLevenshtein import damerauLevenshtein
 
+    
 #Want to have a function that checks for a structure in patients' structure sets, and obtains the contours
 def GetTrainingData(patientsPath, organ, save=True):
     #get the list of patient folders

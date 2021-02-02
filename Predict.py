@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import Model
 import torch
 import torch.nn as nn
+import torch.onnx 
 import pickle
 import random
 import os
@@ -11,6 +12,7 @@ import PostProcessing
 import cv2 as cv
 import DicomParsing
 import Test
+
 
 
 def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True):
@@ -34,6 +36,8 @@ def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True
             contours = []
             zValues = [] #keep track of z position to add to contours after
             contourImages = []
+
+            exportNum = 0
             for CT in CTs:
                 ipp = CT[1]
                 zValues.append(float(ipp[2]))
@@ -46,14 +50,10 @@ def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True
 
                 predictionRaw = (model(x)).cpu().detach().numpy()
                 prediction = PostProcessing.Process(predictionRaw, threshold)
-                # fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(15, 15))
-                # axs.imshow(prediction[0,0,:,:])
-                # plt.show()
                 contourImage, contourPoints = PostProcessing.MaskToContour(prediction[0,0,:,:])
                 contourImages.append(contourImage)
-                #contourPoints = PostProcessing.AddZToContour(contourPoints, ipp)
                 contours.append(contourPoints)  
-            
+       
             contours = PostProcessing.FixContours(contours)  
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
@@ -75,12 +75,8 @@ def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True
 
             predictionRaw = (model(x)).cpu().detach().numpy()
             prediction = PostProcessing.Process(predictionRaw, threshold)
-            # fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(15, 15))
-            # axs.imshow(prediction[0,0,:,:])
-            # plt.show()
             contourImage, contourPoints = PostProcessing.MaskToContour(prediction[0,0,:,:])
             contourImages.append(contourImage)
-            #contourPoints = PostProcessing.AddZToContour(contourPoints, ipp)
             contours.append(contourPoints)  
         
         contours = PostProcessing.FixContours(contours)  

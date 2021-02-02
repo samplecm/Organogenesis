@@ -3,6 +3,7 @@ import DicomParsing
 import Train
 import Test
 import Predict
+import PostProcessing
 
 def main():
     print("Welcome to Organogenesis")
@@ -30,23 +31,25 @@ def main():
     chooseTask_string += "\n2. Predict " + str(OARs[chosenOAR]) + " contours using an existing model"
     chooseTask_string += "\n3. Determine threshold accuracies for predictions of the " + str(OARs[chosenOAR])
     chooseTask_string += "\n4. Determine F-score for validation set of the " + str(OARs[chosenOAR])
-    chooseTask_string += "\n5. Plot predicted masks for the  " + str(OARs[chosenOAR]) + "\n>>"
+    chooseTask_string += "\n5. Plot predicted masks for the  " + str(OARs[chosenOAR])
+    chooseTask_string += "\n6. Export model to ONNX"
+    chooseTask_string += "\n7. predict using ONNX model \n>>"
     while True:
         try:
             task = int(input(chooseTask_string))
-            if (task in range(0,6)):
+            if (task in range(0,8)):
                 break
         except KeyboardInterrupt:
             quit()
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 12, 1e-3, processData=True, loadModel=True)
+        Train.Train(OARs[chosenOAR], 12, 1e-3, processData=False, loadModel=False)
         Test.Best_Threshold(OARs[chosenOAR],400)
 
         Test.TestPlot(OARs[chosenOAR], threshold=0.1)  
     elif task == 2:    
-        Predict.GetContours(OARs[chosenOAR],"P7", threshold = 0.125, withReal=True, tryLoad=False) 
+        Predict.GetContours(OARs[chosenOAR],"P86", threshold = 0.09, withReal=True, tryLoad=False) 
     elif task == 3:
         Test.Best_Threshold(OARs[chosenOAR],  testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
@@ -54,6 +57,10 @@ def main():
         print([F_Score, recall, precision, accuracy])
     elif task == 5:
         Test.TestPlot(OARs[chosenOAR], threshold=0.2) 
+    elif task == 6:
+        PostProcessing.Export_To_ONNX(OARs[chosenOAR])    
+    elif task == 7:
+        PostProcessing.Infer_From_ONNX(OARs[chosenOAR], 'P7')        
         
 
    

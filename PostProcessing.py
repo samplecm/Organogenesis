@@ -4,12 +4,20 @@ import torch.nn as nn
 import cv2 as cv
 import matplotlib.pyplot as plt
 import math
+import onnxruntime
+import Model
+import os
+import pathlib
+import random
+import pickle
+import Test
+
 
 def Process(prediction, threshold):
 
     prediction = sigmoid(prediction)
     #prediction[0,1,:,:] = FilterBackground(prediction[0,1,:,:], threshold)
-    prediction[0,0,:,:] = FilterContour(prediction[0,0,:,:], threshold)
+    prediction = FilterContour(prediction, threshold)
     
     return prediction
 
@@ -18,6 +26,7 @@ def sigmoid(z):
     return 1/(1 + np.exp(-(z)))      
 
 def FilterContour(image, threshold):
+    print(image.shape)
     xLen, yLen = image.shape
     #print(f"Contours: max pixel: {np.amax(image)}, min pixel: {np.amin(image)}")
     #return image #NormalizeImage(sigmoid(image))
@@ -242,6 +251,73 @@ def MaxGap(slices):
             maxGapIndex = i
     return maxGap, maxGapIndex        
 
+
+def Export_To_ONNX(organ):
+    model = Model.UNet()
+    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))      
+    model.eval()
+
+    #Now need a dummy image to predict with to save the weights
+    x = np.zeros((512,512))
+    x = torch.from_numpy(x)
+    x = torch.reshape(x, (1,1,512,512)).float()
+    torch.onnx.export(model,x,os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".onnx"), export_params=True, opset_version=10)
+
+
+
+    try:
+        session = onnxruntime.InferenceSession(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".onnx"))
+    except (InvalidGraph, TypeError, RuntimeError) as e:
+        print(e)
+        raise e
+def Infer_From_ONNX(organ, patient):    
+    session = onnxruntime.InferenceSession(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".onnx"))
+    inputName = session.get_inputs()[0].name 
+    outputName = session.get_outputs()[0].name
+    dataPath = 'Processed_Data/' + organ + "_Val/"
+    dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
+    dataFiles = os.listdir(dataFolder)
+    filesRange = list(range(len(dataFiles)))
+    random.shuffle(filesRange)
+    for d in filesRange:
+        imagePath = dataFiles[d]
+        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
+        data = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
+        x = data[0, :, :]
+        x = x.astype('float32')
+        y = torch.from_numpy(data[1:2, :,:])
+        xLen, yLen = x.shape
+        #need to reshape 
+        x = x.reshape((1,1,xLen,yLen))
+        y = torch.reshape(y, (1,1,xLen,yLen)).float()   
+        predictionRaw = session.run([outputName], {inputName: x})
+        predictionRaw = np.reshape(np.array(predictionRaw), (512,512))
+        prediction = np.reshape(Process(predictionRaw, 0.1), (1,1,512,512))
+        y = y.numpy()
+        maskOnImage = Test.MaskOnImage(x[0,0,:,:], prediction[0,0,:,:])
+        ROIOnImage = Test.MaskOnImage(x[0,0,:,:], y[0,0,:,:])
+
+        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
+        
+        #predictedContour = PostProcessing.MaskToContour(prediction[0,0,:,:])
+        #contour = PostProcessing.MaskToContourImage(y[0,0,:,:])
+        axs[0,0].imshow(ROIOnImage, cmap = "gray")
+        axs[0,0].set_title("Original Image")
+        #axs[0,1].hist(predictionRaw[0,0,:,:], bins=5)
+        axs[0,1].imshow(maskOnImage, cmap = "gray")
+        axs[0,1].set_title("Mask on Image")
+        axs[1,0].imshow(y[0,0, :,:], cmap = "gray")
+        axs[1,0].set_title("Original Mask")
+        axs[1,1].imshow(prediction[0,0, :,:], cmap="gray")
+        axs[1,1].set_title("Predicted Mask")
+
+        
+        # axs[2,0].imshow(y[0,1, :,:], cmap = "gray")
+        # axs[2,0].set_title("Original Background")
+        # axs[2,1].imshow(prediction[0,1, :,:], cmap = "gray")
+        # axs[2,1].set_title("Predicted Background")
+        plt.show()
+        
 
 
 
