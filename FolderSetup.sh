@@ -39,7 +39,11 @@ fi
 
 
 
-cd ../Processed_Data
+cd ..
+if [ ! -d "Processed_Data" ]; then
+  mkdir "Processed_Data"
+fi
+cd "Processed_Data"
 if [ ! -d "Body" ]; then
   mkdir "Body"
 fi
@@ -102,6 +106,9 @@ if [ ! -d "Left Parotid_Test" ]; then
 fi
 if [ ! -d "Right Parotid_Test" ]; then
   mkdir "Right Parotid_Test"
+fi
+if [ ! -d "CT Images" ]; then
+  mkdir "CT Images"
 fi
 
 
