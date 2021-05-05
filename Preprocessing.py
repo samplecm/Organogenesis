@@ -10,6 +10,7 @@ import plotly.graph_objects as graph_objects
 from mpl_toolkits.mplot3d import Axes3D 
 
 def Process(combinedImages):
+    #not in use right now
 #Take patient CTs and contours and then remove any uncontoured areas images that are in the middle of an ROI
 #This assumes that the structure is fully connected
     firstImageFound = False

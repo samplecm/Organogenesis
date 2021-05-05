@@ -74,7 +74,8 @@ def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True
             x = torch.reshape(x, (1,1,xLen,yLen)).float()
 
             predictionRaw = (model(x)).cpu().detach().numpy()
-            prediction = PostProcessing.Process(predictionRaw, threshold)
+            prediction = predictionRaw
+            prediction[0,0,:,:] = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
             contourImage, contourPoints = PostProcessing.MaskToContour(prediction[0,0,:,:])
             contourImages.append(contourImage)
             contours.append(contourPoints)  

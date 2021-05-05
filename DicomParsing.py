@@ -21,15 +21,14 @@ def GetTrainingData(patientsPath, organ, save=True):
     filesFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), patientsPath)
     patientFolders = sorted(os.listdir(filesFolder))
 
-    #Create a dictionary for patients and their corresponding matched structure, and a list for unmatched patients
+    #Create a dictionary for patients and their corresponding matched organ, and a list for unmatched patients. All the ones with matching organs can be used for training
     patientStructuresDict = {}
     unmatchedPatientsList = []
 
     #Loop through the patients
     for p in range(len(patientFolders)):
         patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
-        #get the RTSTRUCT dicom file:
-        #Now get patient1 's CT scans: 
+        #get the RTSTRUCT dicom file and get patient 's CT scans: 
         for fileName in patient:
             if "STRUCT" in fileName:
                 structFile = fileName   
@@ -60,7 +59,7 @@ def GetTrainingData(patientsPath, organ, save=True):
         displayString += str(i) + ". " + data + ": " + patientStructuresDict[data][0] + "\n"
         i += 1
     print(displayString) 
-
+    #Wait for input, this just tells the user how many patients actually had that contour for training and asks if they want to proceed:
     while True:
         try:
             cont = input("Continue? (Y/N)")
@@ -84,7 +83,7 @@ def GetTrainingData(patientsPath, organ, save=True):
                 patient_CTs.append(fileName)
             elif "STRUCT" in fileName:
                 patient_Struct.append(fileName)  
-
+        #iop and ipp are needed to relate the coordinates of structures to the CT images
         iop = dcmread(patient_CTs[0]).get("ImageOrientationPatient")
         ipp = dcmread(patient_CTs[0]).get("ImagePositionPatient")
         print([patientFolders[p], iop, ipp])
@@ -93,7 +92,7 @@ def GetTrainingData(patientsPath, organ, save=True):
         sliceThickness = dcmread(patient_CTs[0]).get("SliceThickness")
         #Now I want numpy arrays of all these CT images. I save these in a list, where each element is itself a list, with index 0: CT image, index 1: z-value for that slice
         CTs = []
-        ssFactor = 1 #at the moment don't need to upsample
+        ssFactor = 1 #at the moment don't need to supersample the image. This is something to look into.. does increasing resolution increase the accuracy? SSfactor an integer greater than 1 will multiply the pixels in each direction by that number
         for item in pixelSpacing:
             item *= ssFactor
         for CTFile in patient_CTs:
@@ -116,6 +115,7 @@ def GetTrainingData(patientsPath, organ, save=True):
                 image = CTs[zSlice][0]
                 with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                     pickle.dump(image , fp)
+                    #saving the images
             continue
         roiNumber = patientStructuresDict[patientFolders[p]][1]
         structsMeta = dcmread(patient_Struct[0]).data_element("ROIContourSequence")
@@ -124,10 +124,10 @@ def GetTrainingData(patientsPath, organ, save=True):
         numContourPoints = 0 
         contours = []
         for contourInfo in structsMeta:
-            if contourInfo.get("ReferencedROINumber") == roiNumber:
-                for contoursequence in contourInfo.ContourSequence: #take away 0!!
+            if contourInfo.get("ReferencedROINumber") == roiNumber: #get the correct contour for the given organ
+                for contoursequence in contourInfo.ContourSequence: 
                     contours.append(contoursequence.ContourData)
-                    #But this is easier to work with if we convert from a 1d to a 2d list for contours
+                    #But this is easier to work with if we convert from a 1d to a 2d list for contours ( [ [x1,y1,z1], [x2,y2,z2] ... ] )
                     tempContour = []
                     i = 0
                     while i < len(contours[-1]):
@@ -142,9 +142,9 @@ def GetTrainingData(patientsPath, organ, save=True):
                             pointListy = np.array([x,y,z])   
                         numContourPoints+=1       
                     contours[-1] = tempContour    
-        #Right now I need the contour points in terms of the image dimensions so that they can be turned into an image for training:
+        #Right now I need the contour points in terms of the image pixel numbers so that they can be turned into an image for training:
         contourIndices = MakeContourImage(ipp, pixelSpacing, contours)
-        #Now need to make images of the same size as CTs, with just contours showing 
+        #Now need to make images of the same size as CTs, with contour masks
         contourImages = []
         combinedImages = []
         backgroundImages = []
@@ -152,8 +152,9 @@ def GetTrainingData(patientsPath, organ, save=True):
         xLen = np.size(CTs[0][0], axis = 0)
         yLen = np.size(CTs[0][0], axis = 1)
         for idx, CT in enumerate(CTs):            
-            contourOnImage = False #keep track if a contour is on this image, if not just add a blank image.          
-            #Now need to add the contour polygon to this image, if one exists on the current layer
+            contourOnImage = False #keep track if a contour is on this image, if not just add a blank image.  
+
+            #Now need to add the contour polygon mask to this image, if one exists on the current layer
             #loop over contours to check if z-value matches current CT.
             for contour in contourIndices:
                 if contour[0][2] == CT[1]:    #if the contour is on the current slice
@@ -166,7 +167,7 @@ def GetTrainingData(patientsPath, organ, save=True):
                     for pointList in contour:
                         contourPoints.append((int(pointList[0]), int(pointList[1])))
                     contourPolygon = Polygon(contourPoints)
-                    ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1)
+                    ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
                     #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
                     #ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
                     contourImage = np.array(contourImage)
@@ -191,8 +192,8 @@ def GetTrainingData(patientsPath, organ, save=True):
         trainContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
         valImagePath = "Processed_Data/" + organ + "_Val/ValData_" + patientFolders[p]
         valContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
-
-        combinedData = np.zeros((2,len(CTs),xLen,yLen))
+        testImagePath = "Processed_Data/" + organ + "_Test/TestData_" + patientFolders[p] 
+        testContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
         for zSlice in range(len(CTs)):
             combinedData[0,zSlice,:,:] = CTs[zSlice][0]
             combinedData[1,zSlice,:,:] = contourImages[zSlice]
@@ -222,6 +223,11 @@ def GetTrainingData(patientsPath, organ, save=True):
         #                 pointListy = np.vstack((pointListy, np.array([x,y,z])))
         #                 numContourPoints+=1       
         #             bodyContours[-1] = tempContour    
+
+
+
+        #So some of the contoured organs are incomplete or just not good, and so you don't want to use for training. So what this is doing now is plotting every contour so that you can then decide whether or not to use it for training.
+
         print("Plotting")
         #Here we plot a 3d image of the pointcloud from the list of masks. 
         #First need to convert the masks to contours: 
@@ -256,11 +262,17 @@ def GetTrainingData(patientsPath, organ, save=True):
                         pickle.dump(combinedData[:,zSlice,:,:], fp)         
                     with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump(contourOnPlane[zSlice], fp)     
-            
+            else:
+                with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(TestImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                        pickle.dump(combinedData[:,zSlice,:,:], fp)         
+                with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                        pickle.dump(contourOnPlane[zSlice], fp)  
+
 
         
         
 def GetPredictionData(patientFileName,organ):
+    #This prepares data to be used for predicting and not training, so it is not necessary to supply contours corresponding to images
     patientPath = "Patient_Files/" + patientFileName
     #get the list of patient folders
     patientPath = os.path.join(pathlib.Path(__file__).parent.absolute(), patientPath)
@@ -294,71 +306,70 @@ def GetPredictionData(patientFileName,organ):
         CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness])
     CTs.sort(key=lambda x:x[1][2]) #not necessarily in order, so sort according to z-slice.
 
-
-    #Now get contours if exist  
-    # try:  
-    structFile = os.path.join(patientPath, structFile)
-    structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-    structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
-    structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-    #print(dcmread(patient1_Struct[0]).data_element("ROIContourSequence")[0])
-    contours = []
-    for contourInfo in structsMeta:
-        if contourInfo.get("ReferencedROINumber") == structureROINum:
-            for contoursequence in contourInfo.ContourSequence: #take away 0!!
-                contours.append(contoursequence.ContourData)
-                #But this is easier to work with if we convert from a 1d to a 2d list for contours
-                tempContour = []
-                i = 0
-                while i < len(contours[-1]):
-                    x = float(contours[-1][i])
-                    y = float(contours[-1][i + 1])
-                    z = float(contours[-1][i + 2])
-                    tempContour.append([x, y, z ])
-                    i += 3    
-                contours[-1] = tempContour 
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "wb") as fp:
-        pickle.dump(contours, fp)                             
-    contourIndices = DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
-    #Now need to make images of the same size as CTs, with just contours showing 
-    contourImages = []
-    combinedImages = []
-    backgroundImages = []
-    contourOnPlane = np.zeros((len(CTs),1))
-    xLen = np.size(CTs[0][0], axis = 0)
-    yLen = np.size(CTs[0][0], axis = 1)
-    for idx, CT in enumerate(CTs):            
-        contourOnImage = False #keep track if a contour is on this image, if not just add a blank image.          
-        #Now need to add the contour polygon to this image, if one exists on the current layer
-        #loop over contours to check if z-value matches current CT.
-        for contour in contourIndices:
-            if contour[0][2] == CT[1]:    #if the contour is on the current slice
-                contourOnPlane[idx] = 1
-                contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
-                backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
-                #combinedImage = Image.fromarray(CT[0])
-                contourPoints = []
-                #now add all contour points to contourPoints as Point objects
-                for pointList in contour:
-                    contourPoints.append((int(pointList[0]), int(pointList[1])))
-                contourPolygon = Polygon(contourPoints)
-                ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1)
-                #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
-                ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
-                contourImage = np.array(contourImage)
-                contourImages.append(contourImage)
-                # combinedImage = np.array(combinedImage)
-                # combinedImages.append(combinedImage)
-                backgroundImage = np.array(backgroundImage)
-                backgroundImages.append(backgroundImage)
-                contourOnImage = True
-                break
-        if not contourOnImage:
-            #if no contour on that layer, add just zeros array
-            contourImage = np.zeros((xLen,yLen))
-            contourImages.append(contourImage)
-            backgroundImage = np.ones((xLen, yLen))
-            backgroundImages.append(backgroundImage)
+    #May 4 2021 - commented this out. Is it necessary? 
+    #Now get contours if exist   
+    # structFile = os.path.join(patientPath, structFile)
+    # structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+    # structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
+    # structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+    # #print(dcmread(patient1_Struct[0]).data_element("ROIContourSequence")[0])
+    # contours = []
+    # for contourInfo in structsMeta:
+    #     if contourInfo.get("ReferencedROINumber") == structureROINum:
+    #         for contoursequence in contourInfo.ContourSequence: #take away 0!!
+    #             contours.append(contoursequence.ContourData)
+    #             #But this is easier to work with if we convert from a 1d to a 2d list for contours
+    #             tempContour = []
+    #             i = 0
+    #             while i < len(contours[-1]):
+    #                 x = float(contours[-1][i])
+    #                 y = float(contours[-1][i + 1])
+    #                 z = float(contours[-1][i + 2])
+    #                 tempContour.append([x, y, z ])
+    #                 i += 3    
+    #             contours[-1] = tempContour 
+    # with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "wb") as fp:
+    #     pickle.dump(contours, fp)                             
+    # contourIndices = DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
+    # #Now need to make images of the same size as CTs, with just contours showing 
+    # contourImages = []
+    # combinedImages = []
+    # backgroundImages = []
+    # contourOnPlane = np.zeros((len(CTs),1))
+    # xLen = np.size(CTs[0][0], axis = 0)
+    # yLen = np.size(CTs[0][0], axis = 1)
+    # for idx, CT in enumerate(CTs):            
+    #     contourOnImage = False #keep track if a contour is on this image, if not just add a blank image.          
+    #     #Now need to add the contour polygon to this image, if one exists on the current layer
+    #     #loop over contours to check if z-value matches current CT.
+    #     for contour in contourIndices:
+    #         if contour[0][2] == CT[1]:    #if the contour is on the current slice
+    #             contourOnPlane[idx] = 1
+    #             contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
+    #             backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
+    #             #combinedImage = Image.fromarray(CT[0])
+    #             contourPoints = []
+    #             #now add all contour points to contourPoints as Point objects
+    #             for pointList in contour:
+    #                 contourPoints.append((int(pointList[0]), int(pointList[1])))
+    #             contourPolygon = Polygon(contourPoints)
+    #             ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1)
+    #             #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
+    #             ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
+    #             contourImage = np.array(contourImage)
+    #             contourImages.append(contourImage)
+    #             # combinedImage = np.array(combinedImage)
+    #             # combinedImages.append(combinedImage)
+    #             backgroundImage = np.array(backgroundImage)
+    #             backgroundImages.append(backgroundImage)
+    #             contourOnImage = True
+    #             break
+    #     if not contourOnImage:
+    #         #if no contour on that layer, add just zeros array
+    #         contourImage = np.zeros((xLen,yLen))
+    #         contourImages.append(contourImage)
+    #         backgroundImage = np.ones((xLen, yLen))
+    #         backgroundImages.append(backgroundImage)
          
     # except:
     #     print("No existing DICOM contour data found for this patient")
@@ -374,6 +385,9 @@ def GetPredictionData(patientFileName,organ):
 
 def FindStructure(metadata, organ, invalidStructures = []):
     #Here we take the string for the desired structure (organ) and find the matching structure for each patient. 
+    #The algorithm is to first make sure that the organ has a substring matching the ROI with at least 3 characters,
+    #then out of the remaining possiblities, find top 3 closest fits with damerau levenshtein algorithm, then check to make sure that they are allowed to match according to rules defined in AllowedToMatch(). There should then ideally
+    # be only one possible match, but if there are two, take the first in the list.   
 
     #Get a list of all structures in structure set: 
     unfilteredStructures = []
@@ -418,6 +432,7 @@ def AllowedToMatch(s1, s2):
     s2 = s2.lower()
     allowed = True
     keywords = []
+    #You can't have only one organ with one of these keywords...
     keywords.append("prv")
     keywords.append("brain")
     keywords.append("ptv")
@@ -452,7 +467,7 @@ def AllowedToMatch(s1, s2):
     if "left" in s2:
         if "l" not in s1:
             allowed = False    
-
+    #its tricky matching up left and right organs sometimes with all the conventions used... this makes sure that both are left or both are right
     if ("_l_" in s1) or (" l " in s1) or  (" l-" in s1) or ("-l-" in s1) or (" l_" in s1) or ("_l " in s1) or ("-l " in s1) or ("left" in s1) or ("l " == s1[0:2]) or ("_lt_" in s1) or (" lt " in s1) or  (" lt-" in s1) or ("-lt-" in s1) or (" lt_" in s1) or ("_lt " in s1) or ("-lt " in s1) or ("lt " == s1[0:3]):
         if not (("lpar" in s2) or ("lsub" in s2) or ("_l_" in s2) or (" l " in s2) or  (" l-" in s2) or ("-l-" in s2) or (" l_" in s2) or ("_l " in s2) or ("-l " in s2) or ("left" in s2) or ("l " == s2[0:2])or ("_lt_" in s2) or (" lt " in s2) or  (" lt-" in s2) or ("-lt-" in s2) or (" lt_" in s2) or ("_lt " in s2) or ("-lt " in s2) or ("lt " == s2[0:3])):   
             allowed = False  

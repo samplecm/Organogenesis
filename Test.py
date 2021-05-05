@@ -29,7 +29,6 @@ def TestPlot(organ, threshold):
         imagePath = dataFiles[d]
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
-        print("Validating with " + dataFiles[d])
         x = torch.from_numpy(data[0, :, :]).cuda()
         y = torch.from_numpy(data[1:2, :,:]).cuda()
         xLen, yLen = x.shape
@@ -37,10 +36,11 @@ def TestPlot(organ, threshold):
         x = torch.reshape(x, (1,1,xLen,yLen)).float()
         y = torch.reshape(y, (1,1,xLen,yLen)).float()   
         predictionRaw = (model(x)).cpu().detach().numpy()
-        prediction = PostProcessing.Process(predictionRaw, threshold)
+        #now post-process the image
+        prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
         x = x.cpu().numpy()
         y = y.cpu().numpy()
-        maskOnImage = MaskOnImage(x[0,0,:,:], prediction[0,0,:,:])
+        maskOnImage = MaskOnImage(x[0,0,:,:], prediction) #this puts the mask ontop of the CT image
         ROIOnImage = MaskOnImage(x[0,0,:,:], y[0,0,:,:])
 
         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
@@ -54,7 +54,7 @@ def TestPlot(organ, threshold):
         axs[0,1].set_title("Mask on Image")
         axs[1,0].imshow(y[0,0, :,:], cmap = "gray")
         axs[1,0].set_title("Original Mask")
-        axs[1,1].imshow(prediction[0,0, :,:], cmap="gray")
+        axs[1,1].imshow(prediction, cmap="gray")
         axs[1,1].set_title("Predicted Mask")
 
         

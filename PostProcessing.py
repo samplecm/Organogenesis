@@ -4,7 +4,6 @@ import torch.nn as nn
 import cv2 as cv
 import matplotlib.pyplot as plt
 import math
-import onnxruntime
 import Model
 import os
 import pathlib
@@ -26,7 +25,7 @@ def sigmoid(z):
     return 1/(1 + np.exp(-(z)))      
 
 def FilterContour(image, threshold):
-    print(image.shape)
+    #this returns a binary prediction which is 1 in pixels that are above the threshold ,and zero otherwise
     xLen, yLen = image.shape
     #print(f"Contours: max pixel: {np.amax(image)}, min pixel: {np.amin(image)}")
     #return image #NormalizeImage(sigmoid(image))
@@ -42,6 +41,7 @@ def FilterContour(image, threshold):
     return filteredImage   
 
 def FilterBackground(image, threshold):
+    #This is the opposite of filter contour, it makes background pixels (less than threshold) be 1 and mask pixels be 0. This creates a mask of the background
     xLen, yLen = image.shape
     #print(f"Background: max pixel: {np.amax(image)}, min pixel: {np.amin(image)}")
     #return image #nn.Softmax()(torch.from_numpy(image)).numpy()
@@ -172,7 +172,6 @@ def FixContours(orig_contours):
             if dist != 0 and len(contours[contourSlices[i-1]])>len(contours[contourSlices[i]]):
                 contours[contourSlices[i]] = InterpolateContour(contours[contourSlices[i-1]], contours[contourSlices[i + dist]], dist)
         i+=1
-        print(i)
         
 
         
@@ -268,7 +267,6 @@ def Export_To_ONNX(organ):
     try:
         session = onnxruntime.InferenceSession(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".onnx"))
     except (InvalidGraph, TypeError, RuntimeError) as e:
-        print(e)
         raise e
 def Infer_From_ONNX(organ, patient):    
     session = onnxruntime.InferenceSession(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".onnx"))
