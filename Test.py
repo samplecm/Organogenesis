@@ -16,9 +16,11 @@ from matplotlib import cm
 
 
 def TestPlot(organ, threshold):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Device being used for training: " + device.type)
     model = Model.UNet()
     model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))    
-    model = model.cuda()      
+    model = model.to(device)    
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
@@ -29,8 +31,10 @@ def TestPlot(organ, threshold):
         imagePath = dataFiles[d]
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
-        x = torch.from_numpy(data[0, :, :]).cuda()
-        y = torch.from_numpy(data[1:2, :,:]).cuda()
+        x = torch.from_numpy(data[0, :, :])
+        y = torch.from_numpy(data[1:2, :,:])
+        x = x.to(device)
+        y = y.to(device)
         xLen, yLen = x.shape
         #need to reshape 
         x = torch.reshape(x, (1,1,xLen,yLen)).float()
@@ -87,12 +91,14 @@ def NormalizeImage(image):
     return (image - amin) / ptp    
 
 def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Device being used for training: " + device.type)
     #return the model output threshold that maximizes accuracy. onlyMasks if true will calculate statistics
     #only for images that have a mask on the plane, and onlyBackground will do it for images without masks.
     print("Determining most accurate threshold...")
     model = Model.UNet()
     model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))    
-    model = model.cuda()      
+    model = model.to(device)     
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
@@ -155,8 +161,10 @@ def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
 
 
             for sliceNum in slices:
-                x = data[0, sliceNum, :, :].cuda()
+                x = data[0, sliceNum, :, :]
                 y = data[1, sliceNum, :, :]
+                x = x.to(device)
+                y = y.to(device)
                 xLen, yLen = x.shape
                 #need to reshape 
                 x = torch.reshape(x, (1,1,xLen,yLen)).float()
@@ -296,9 +304,11 @@ def PlotPatientContours(contours, existingContours):
     o3d.visualization.draw_geometries([pointCloud])
 
 def FScore(organ, threshold):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Device being used for training: " + device.type)
     model = Model.UNet()
     model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-    model = model.cuda()
+    model = model.to(device)
     model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
@@ -326,14 +336,17 @@ def FScore(organ, threshold):
         data = np.concatenate(concatList, axis=1)  
         numSlices = data.shape[1]
         for sliceNum in range(numSlices):
-            x = torch.from_numpy(data[0, sliceNum, :, :]).cuda()
-            y = torch.from_numpy(data[1:2, sliceNum, :,:]).cuda()
+            x = torch.from_numpy(data[0, sliceNum, :, :])
+            y = torch.from_numpy(data[1:2, sliceNum, :,:])
+            x = x.to(device)
+            y = y.to(device)
             xLen, yLen = x.shape
             #need to reshape 
             x.requires_grad = True
             y.requires_grad = True
             x = torch.reshape(x, (1,1,xLen,yLen)).float()
             y = torch.reshape(y, (1,1,xLen,yLen)).float()
+            
             predictionRaw = (model(x)).cpu().detach().numpy()
             prediction = PostProcessing.Process(predictionRaw, threshold)
             for x_idx in range(xLen):

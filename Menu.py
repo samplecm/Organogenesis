@@ -46,7 +46,7 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 20, 1e-5, processData=False, loadModel=False)
+        Train.Train(OARs[chosenOAR], 8, 1e-3, processData=False, loadModel=False)
         Test.Best_Threshold(OARs[chosenOAR],400)
 
         Test.TestPlot(OARs[chosenOAR], threshold=0.1)  

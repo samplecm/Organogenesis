@@ -22,6 +22,11 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
     #processData is required if you are training with new dicom images with a certain ROI for the first time. This saves the CT and contours as image slices for training
     #loadModel is true when you already have a model that you wish to continue training
     #First extract patient training data and process it for each, saving it into Processed_Data folder
+
+    #See if cuda is available, and set the device as either cuda or cpu if is isn't available
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Device being used for training: " + device.type)
+
     dataPath = 'Processed_Data/' + organ + "/"
     if processData == True:
         patientsPath = 'Patient_Files/'
@@ -39,8 +44,7 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
         except:
             trainLossHistory = []
             epochLossHistory = []
-    UNetModel = UNetModel.cuda()   #put the model onto the GPU     
-    UNetModel.train()
+    UNetModel.to(device)  #put the model onto the GPU     
     optimizer = torch.optim.Adam(UNetModel.parameters(), lr)
 
     dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath) #this gives the absolute folder reference of the datapath variable defined above
@@ -82,8 +86,9 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
             for sliceNum in slices:
                 # x = torch.from_numpy(data[0, sliceNum, :, :]).cuda()
                 # y = torch.from_numpy(data[1:3, sliceNum, :,:]).cuda()
-                x = data[0, sliceNum, :, :].cuda()
-                y = data[1, sliceNum, :, :].cuda()
+                x = data[0, sliceNum, :, :] #CT image
+                y = data[1, sliceNum, :, :] #binary mask
+                
                 xLen, yLen = x.shape
 
                 x.requires_grad=True #make sure they have a gradient for training
@@ -91,6 +96,8 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
                 #need to reshape 
                 x = torch.reshape(x, (1,1,xLen,yLen)).float()
                 y = torch.reshape(y, (1,1,xLen,yLen)).float()
+                x = x.to(device)
+                y = y.to(device)
                 loss = UNetModel.trainingStep(x,y) #compute the loss of training prediction
                 trainLossHistory.append(loss.item())
                 loss.backward() #backpropagate
@@ -120,7 +127,8 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
          
 
 def Validate(organ, model):
-    model = model.cuda()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
     model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
@@ -144,8 +152,10 @@ def Validate(organ, model):
         data = np.concatenate(concatList, axis=1)  
         numSlices = data.shape[1]
         for sliceNum in range(numSlices):
-            x = torch.from_numpy(data[0, sliceNum, :, :]).cuda()
-            y = torch.from_numpy(data[1:2, sliceNum, :,:]).cuda()
+            x = torch.from_numpy(data[0, sliceNum, :, :])
+            y = torch.from_numpy(data[1:2, sliceNum, :,:])
+            x.to(device)
+            y.to(device)
             xLen, yLen = x.shape
             #need to reshape 
             x.requires_grad = True

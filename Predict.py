@@ -17,9 +17,11 @@ import Test
 
 def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True):
     #with real loads pre=existing DICOM roi to compare the prediction with 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Device being used for training: " + device.type)
     model = Model.UNet()
     model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))    
-    model = model.cuda()      
+    model = model.to(device)    
     model.eval()
 
     #Make a list for all the contour images
@@ -43,7 +45,7 @@ def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True
                 zValues.append(float(ipp[2]))
                 pixelSpacing = CT[2]
                 sliceThickness= CT[3]
-                x = torch.from_numpy(CT[0]).cuda()
+                x = torch.from_numpy(CT[0]).to(device)
                 xLen, yLen = x.shape
                 #need to reshape 
                 x = torch.reshape(x, (1,1,xLen,yLen)).float()
@@ -68,7 +70,8 @@ def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True
             zValues.append(float(ipp[2]))
             pixelSpacing = CT[2]
             sliceThickness= CT[3]
-            x = torch.from_numpy(CT[0]).cuda()
+            x = torch.from_numpy(CT[0]).to(device)
+
             xLen, yLen = x.shape
             #need to reshape 
             x = torch.reshape(x, (1,1,xLen,yLen)).float()

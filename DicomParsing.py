@@ -99,9 +99,9 @@ def GetTrainingData(patientsPath, organ, save=True):
             resizedArray = ImageUpsizer(np.array(dcmread(CTFile).pixel_array) , ssFactor)
             #Now normalize the image so its values are between 0 and 1
 
-            #Anything greater than 2700 Hounsfield units is likely artifact, so cap here.
+            #Anything greater than 2500 Hounsfield units is likely artifact, so cap here.
             if resizedArray.max() > 2500:
-                resizedArray = np.clip(resizedArray, -1000, 2700)
+                resizedArray = np.clip(resizedArray, -1000, 2500)
             resizedArray = NormalizeImage(resizedArray)
             
             CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient").value[2]])
