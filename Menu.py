@@ -5,8 +5,6 @@ import Test
 import Predict
 import PostProcessing
 
-#test
-
 def main():
     print("Welcome to Organogenesis")
     print("------------------")
