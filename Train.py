@@ -111,7 +111,18 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
                 iteration += 1    
         #end of epoch: check validation loss and
         #Save the model:
-        torch.save(UNetModel.state_dict(), os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt"))  
+        torch.save(UNetModel.state_dict(), os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")) 
+        
+        #make a list of the hyperparameters and their labels 
+        hyperparameters = []
+
+        hyperparameters.append(["Learning Rate", lr])
+        hyperparameters.append(["Epochs Completed", epoch])
+        hyperparameters.append(["Optimizer", "Adam"])
+
+        #save the hyperparameters to a binary file to be used in Test.FScore()
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
+            pickle.dump(hyperparameters, fp)
 
         epochLoss = Validate(organ, UNetModel) #validation step
         epochLossHistory.append(epochLoss)
