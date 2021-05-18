@@ -41,9 +41,14 @@ def TestPlot(organ, threshold):
         y = torch.reshape(y, (1,1,xLen,yLen)).float()   
         predictionRaw = (model(x)).cpu().detach().numpy()
         #now post-process the image
+        x = x.cpu()
+        y = y.cpu()
+        x = x.numpy()
+        y = y.numpy()
+        print(np.amax(y))
+        print(np.amin(y))
         prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
-        x = x.cpu().numpy()
-        y = y.cpu().numpy()
+
         maskOnImage = MaskOnImage(x[0,0,:,:], prediction) #this puts the mask ontop of the CT image
         ROIOnImage = MaskOnImage(x[0,0,:,:], y[0,0,:,:])
 
@@ -117,7 +122,7 @@ def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
     accuracies = [] #make a list of average accuracies calculated using different thresholds
     falsePos = []
     falseNeg = []
-    thresholds = np.linspace(0.05,0.7,15)
+    thresholds = np.linspace(0.05,0.6,8)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
@@ -164,13 +169,13 @@ def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
                 x = data[0, sliceNum, :, :]
                 y = data[1, sliceNum, :, :]
                 x = x.to(device)
-                y = y.to(device)
+                
                 xLen, yLen = x.shape
                 #need to reshape 
                 x = torch.reshape(x, (1,1,xLen,yLen)).float()
                 y = torch.reshape(y, (xLen,yLen)).float()   
                 predictionRaw = (model(x)).cpu().detach().numpy()
-                prediction = PostProcessing.Process(predictionRaw,thres) 
+                prediction = PostProcessing.Process(predictionRaw[0,0,:,:],thres) 
                 prediction = np.reshape(prediction, (xLen, yLen))
                 #now judge accuracy: 
                
