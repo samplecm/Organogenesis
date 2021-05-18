@@ -148,7 +148,7 @@ def Validate(organ, model):
     d = 0
     print('Validating')
     while d < len(dataFiles):
-        numStack = min(1400, len(dataFiles) - 1 - d) #loading 1400 images at a time (takes about 20GB RAM)
+        numStack = min(200, len(dataFiles) - 1 - d) #loading 1400 images at a time (takes about 20GB RAM)
         p = 0
         concatList = []
         while p < numStack:
@@ -165,8 +165,8 @@ def Validate(organ, model):
         for sliceNum in range(numSlices):
             x = torch.from_numpy(data[0, sliceNum, :, :])
             y = torch.from_numpy(data[1:2, sliceNum, :,:])
-            x.to(device)
-            y.to(device)
+            x = x.to(device)
+            y = y.to(device)
             xLen, yLen = x.shape
             #need to reshape 
             x.requires_grad = True

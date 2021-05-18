@@ -46,19 +46,19 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 8, 1e-3, processData=False, loadModel=False)
+        Train.Train(OARs[chosenOAR], 7, 1e-3, processData=True, loadModel=False)
         Test.Best_Threshold(OARs[chosenOAR],400)
 
         Test.TestPlot(OARs[chosenOAR], threshold=0.1)  
     elif task == 2:    
-        Predict.GetContours(OARs[chosenOAR],"P86", threshold = 0.09, withReal=True, tryLoad=False) 
+        Predict.GetContours(OARs[chosenOAR],"P85", threshold = 0.15, withReal=True, tryLoad=False) 
     elif task == 3:
         Test.Best_Threshold(OARs[chosenOAR],  testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
         F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2)    
         print([F_Score, recall, precision, accuracy])
     elif task == 5:
-        Test.TestPlot(OARs[chosenOAR], threshold=0.2) 
+        Test.TestPlot(OARs[chosenOAR], threshold=0.1) 
     elif task == 6:
         PostProcessing.Export_To_ONNX(OARs[chosenOAR])    
     elif task == 7:
@@ -68,4 +68,6 @@ def main():
    
 
 if __name__ == "__main__":
-    main()
+    main()     # for zSlice in range(len(CTs)):
+        #     combinedData[0,zSlice,:,:] = CTs[zSlice][0]
+        #     combinedData[1,zSlice,:,:] = contourImages[zSlice]
