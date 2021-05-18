@@ -194,9 +194,10 @@ def GetTrainingData(patientsPath, organ, save=True):
         valContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
         testImagePath = "Processed_Data/" + organ + "_Test/TestData_" + patientFolders[p] 
         testContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
-        # for zSlice in range(len(CTs)):
-        #     combinedData[0,zSlice,:,:] = CTs[zSlice][0]
-        #     combinedData[1,zSlice,:,:] = contourImages[zSlice]
+        combinedData = np.zeros((2,len(CTs),xLen,yLen))
+        for zSlice in range(len(CTs)):
+            combinedData[0,zSlice,:,:] = CTs[zSlice][0]
+            combinedData[1,zSlice,:,:] = contourImages[zSlice]
             #combinedData[2,zSlice,:,:] = backgroundImages[zSlice]
         
         #Now also get the contour for plotting
@@ -253,8 +254,8 @@ def GetTrainingData(patientsPath, organ, save=True):
                 if zSlice < 10:
                     sliceText = "0" + str(zSlice)
                 if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
-                    # with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                    #     pickle.dump(combinedData[:,zSlice,:,:], fp)         
+                    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                        pickle.dump(combinedData[:,zSlice,:,:], fp)         
                     with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
                         pickle.dump(contourOnPlane[zSlice], fp)          
                 else:
