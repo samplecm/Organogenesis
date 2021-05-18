@@ -1,0 +1,9 @@
+Loss History/
+Predictions_Patients/
+Processed_Data/
+SavedImages/
+Patient_Files/
+Models/
+__pycache__/
+*.sqlite
+*.suo
