@@ -1,6 +1,10 @@
-Loss History
-Models
-Patient_Files
-Predictions_Patients
-SavedImages
 
+Loss History/
+Predictions_Patients/
+Processed_Data/
+SavedImages/
+Patient_Files/
+Models/
+__pycache__/
+*.sqlite
+*.suo
