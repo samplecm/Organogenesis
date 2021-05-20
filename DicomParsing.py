@@ -249,8 +249,8 @@ def GetTrainingData(patientsPath, organ, save=True):
             except: pass   
 
         for zSlice in range(len(CTs)):    
-            if save == True:
-                sliceText = str(zSlice)
+            sliceText = str(zSlice)
+            if save == True:               
                 if zSlice < 10:
                     sliceText = "0" + str(zSlice)
                 if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
@@ -264,7 +264,7 @@ def GetTrainingData(patientsPath, organ, save=True):
                     with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump(contourOnPlane[zSlice], fp)     
             else:
-                with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(TestImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump(combinedData[:,zSlice,:,:], fp)         
                 with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump(contourOnPlane[zSlice], fp)  
