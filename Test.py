@@ -370,6 +370,26 @@ def FScore(organ, threshold):
     precision = TP / (TP + FP)
     F_Score = 2 / (recall**(-1) + precision ** (-1))
     accuracy = (totalPoints - FP - FN) / totalPoints
+
+    #create a list of the hyperarameters of the model and the F score data
+    F_ScoreHyperparameters= []
+
+    #load the hyperparamaters of the model
+    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
+        F_ScoreHyperparameters = pickle.load(fp)
+
+    F_ScoreHyperparameters.append(["F Score", F_score])
+    F_ScoreHyperparameters.append(["Recall", recall])
+    F_ScoreHyperparameters.append(["Precision", precision])
+    F_ScoreHyperparameters.append(["Accuracy", accuracy])
+
+    #save the hyperparamters and F score data for the model 
+    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Evaluation Data\EvaluationData_Model_" + organ.replace(" ", "") + ".txt"), "w") as fp:
+        for data in F_ScoreHyperparameters:
+            for element in data:
+                fp.write(str(element)+ " ")
+            fp.write('\n')
+  
     return F_Score, recall, precision, accuracy
 
         
