@@ -16,6 +16,7 @@ import torch.nn.functional as F
 import DicomParsing
 import Model
 import Test
+from Dataset import CTDataset
 
 
 def Train(organ,numEpochs,lr, processData=False, loadModel=False):
@@ -56,49 +57,22 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
     
     for epoch in range(numEpochs):
         UNetModel.train() #put model in training mode
-        #Loop through the patients, in a random order
-        filesRange = list(range(len(dataFiles)))
-        random.shuffle(filesRange)
-        
-        d = 0
-        while d < len(filesRange):
-            #loading 200 images at a time for training so that RAM isn't totally filled up
-            numStack = min(200, len(filesRange) - 1 - d)
-            p = 0
-            concatList = []
-            while p < numStack:
-                imagePath = dataFiles[d]
-                image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
-                image = image.reshape((2,1,image.shape[1], image.shape[2]))
-                #add to a list of all these training images
-                concatList.append(image)
-                p+=1
-                d+=1
-            if len(concatList) == 0:
-                break    
-            data = np.concatenate(concatList, axis=1)    #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
-            print('Loaded ' + str(data.shape[1]) + ' images for training. Proceeding...')          
-            data = torch.from_numpy(data)
-            numSlices = data.shape[1]
-            slices = list(range(numSlices))
-            random.shuffle(slices)
-            #now images are in a random order and we begin training
-            for sliceNum in slices:
-                # x = torch.from_numpy(data[0, sliceNum, :, :]).cuda()
-                # y = torch.from_numpy(data[1:3, sliceNum, :,:]).cuda()
-                x = data[0, sliceNum, :, :] #CT image
-                y = data[1, sliceNum, :, :] #binary mask
-                
-                xLen, yLen = x.shape
 
-                x.requires_grad=True #make sure they have a gradient for training
-                y.requires_grad=True
-                #need to reshape 
-                x = torch.reshape(x, (1,1,xLen,yLen)).float()
-                y = torch.reshape(y, (1,1,xLen,yLen)).float()
-                x = x.to(device)
-                y = y.to(device)
-                loss = UNetModel.trainingStep(x,y) #compute the loss of training prediction
+        #creates the training dataset 
+        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
+
+        #creates the training dataloader 
+        train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)
+
+        #go through all of the images in the data set 
+        for i, (image, mask) in enumerate(train_loader): 
+                
+                image.requires_grad=True #make sure they have a gradient for training
+                mask.requires_grad=True
+
+                image = image.to(device)
+                mask = mask.to(device)
+                loss = UNetModel.trainingStep(image,mask) #compute the loss of training prediction
                 trainLossHistory.append(loss.item())
                 loss.backward() #backpropagate
                 optimizer.step()
@@ -109,6 +83,7 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
                 if iteration % 100 == 99:
                     print("Epoch # " + str(epoch + 1) + " --- " + "training on image #: " + str(iteration+1) + " --- last 100 loss: " + str(sum(trainLossHistory[-100:])/100))
                 iteration += 1    
+       
         #end of epoch: check validation loss and
         #Save the model:
         torch.save(UNetModel.state_dict(), os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")) 
