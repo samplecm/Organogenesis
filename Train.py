@@ -120,36 +120,26 @@ def Validate(organ, model):
     dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
     dataFiles = sorted(os.listdir(dataFolder))
     lossHistory = []
-    d = 0
     print('Validating')
-    while d < len(dataFiles):
-        numStack = min(200, len(dataFiles) - 1 - d) #loading 1400 images at a time (takes about 20GB RAM)
-        p = 0
-        concatList = []
-        while p < numStack:
-            imagePath = dataFiles[d]
-            image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
-            image = image.reshape((2,1,image.shape[2], image.shape[2]))
-            concatList.append(image)
-            p+=1
-            d+=1
-        if len(concatList) == 0:
-            break    
-        data = np.concatenate(concatList, axis=1)  
-        numSlices = data.shape[1]
-        for sliceNum in range(numSlices):
-            x = torch.from_numpy(data[0, sliceNum, :, :])
-            y = torch.from_numpy(data[1:2, sliceNum, :,:])
-            x = x.to(device)
-            y = y.to(device)
-            xLen, yLen = x.shape
-            #need to reshape 
-            x.requires_grad = True
-            y.requires_grad = True
-            x = torch.reshape(x, (1,1,xLen,yLen)).float()
-            y = torch.reshape(y, (1,1,xLen,yLen)).float()
-            loss = model.trainingStep(x,y)
-            lossHistory.append(loss.item())
-    return sum(lossHistory) / len(lossHistory)        
+
+    #creates the validation dataset 
+    val_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
+
+    #creates the validation dataloader 
+    val_loader = DataLoader(dataset = val_dataset, batch_size = 1, shuffle = True)
+
+    for i, (image, mask) in enumerate(val_loader):
+
+        #validation does not require gradient calculations, turned off to reduce memory use 
+        with torch.no_grad():
+            image = image.to(device)
+            mask = mask.to(device)
+         
+            loss = model.trainingStep(image,mask)
+        lossHistory.append(loss.item())
+
+    return sum(lossHistory) / len(lossHistory)  
+
+ 
           
           
