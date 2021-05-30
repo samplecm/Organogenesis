@@ -17,6 +17,7 @@ import DicomParsing
 import Model
 import Test
 from Dataset import CTDataset
+import albumentations as A 
 
 
 def Train(organ,numEpochs,lr, processData=False, loadModel=False):
@@ -51,6 +52,11 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
     dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath) #this gives the absolute folder reference of the datapath variable defined above
     dataFiles = sorted(os.listdir(dataFolder))
 
+    transform = A.Compose ([
+    A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(20, p=0.5)], p=0.5),
+    A.ElasticTransform(p=0.5, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03)
+    ])
+
     print("Beginning Training")    
     iteration = 0
     #Criterion = F.binary_cross_entropy_with_logits()#nn.BCEWithLogitsLoss() I now just define this in the model
@@ -59,7 +65,8 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
         UNetModel.train() #put model in training mode
 
         #creates the training dataset 
-        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
+        #set transform = transform for data augmentation, none for no augmentation
+        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = transform)
 
         #creates the training dataloader 
         train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)

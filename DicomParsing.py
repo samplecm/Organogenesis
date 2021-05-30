@@ -102,7 +102,9 @@ def GetTrainingData(patientsPath, organ, save=True):
             #Anything greater than 2500 Hounsfield units is likely artifact, so cap here.
             if resizedArray.max() > 2500:
                 resizedArray = np.clip(resizedArray, -1000, 2500)
-            resizedArray = NormalizeImage(resizedArray)
+
+            #images are now normalized in the dataset, this allows for data augmentation to be performed 
+            #resizedArray = NormalizeImage(resizedArray)
             
             CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient").value[2]])
         CTs.sort(key=lambda x:x[1]) #not necessarily in order, so sort according to z-slice.

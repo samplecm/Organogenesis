@@ -27,6 +27,8 @@ class CTDataset(Dataset):
 
         xLen, yLen = image.shape
 
+        image = self.NormalizeImage(image)
+
         #converts to tensors 
         image = torch.from_numpy(image)
         mask = torch.from_numpy(mask)
@@ -37,6 +39,12 @@ class CTDataset(Dataset):
 
         return(image, mask)
 
-
-
-
+    def NormalizeImage(self, image):
+        #if its entirely ones or entirely zeros, can just return it as is. 
+        if np.amin(image) == 1 and np.amax(image) == 1:
+            return image
+        elif np.amin(image) == 0 and np.amax(image) == 0:
+            return image     
+        ptp = np.ptp(image)
+        amin = np.amin(image)
+        return (image - amin) / ptp    
