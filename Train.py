@@ -32,7 +32,7 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
     dataPath = 'Processed_Data/' + organ + "/"
     if processData == True:
         patientsPath = 'Patient_Files/'
-        DicomParsing.GetTrainingData(patientsPath, organ) #go through all the dicom files and create the images
+        DicomParsing.GetTrainingData(patientsPath, organ, preSorted = False) #go through all the dicom files and create the images
         print("Data Processed")
     #Now define or load the model and optimizer: 
     epochLossHistory = []
@@ -65,8 +65,8 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
         UNetModel.train() #put model in training mode
 
         #creates the training dataset 
-        #set transform = transform for data augmentation, none for no augmentation
-        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = transform)
+        #set transform = transform for data augmentation, None for no augmentation
+        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
 
         #creates the training dataloader 
         train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)
@@ -98,9 +98,13 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
         #make a list of the hyperparameters and their labels 
         hyperparameters = []
 
+        hyperparameters.append(["Model", "UNet"])
         hyperparameters.append(["Learning Rate", lr])
         hyperparameters.append(["Epochs Completed", epoch])
         hyperparameters.append(["Optimizer", "Adam"])
+        hyperparameters.append(["Batch Size", "1"])
+        hyperparameters.append(["Loss Function", "BCEWithLogitsLoss"])
+        hyperparameters.append(["Data Augmentation", "Off"])
 
         #save the hyperparameters to a binary file to be used in Test.FScore()
         with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "wb") as fp:

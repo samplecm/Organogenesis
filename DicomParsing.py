@@ -16,7 +16,8 @@ from fastDamerauLevenshtein import damerauLevenshtein
 
     
 #Want to have a function that checks for a structure in patients' structure sets, and obtains the contours
-def GetTrainingData(patientsPath, organ, save=True):
+#if preSorted = True, that means that they are already sorted lists indicating whether the contour is good or bad (no need to plot) 
+def GetTrainingData(patientsPath, organ, preSorted, save=True):
     #get the list of patient folders
     filesFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), patientsPath)
     patientFolders = sorted(os.listdir(filesFolder))
@@ -25,25 +26,47 @@ def GetTrainingData(patientsPath, organ, save=True):
     patientStructuresDict = {}
     unmatchedPatientsList = []
 
+    if preSorted == True:
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Processed_Data/Sorted Contour Lists/" + organ + " Good Contours.txt"), "rb") as fp:
+            goodContoursList = pickle.load(fp)
+
+        for p in range(len(patientFolders)):
+            if patientFolders[p] in goodContoursList:
+                patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
+                #get the RTSTRUCT dicom file and get patient 's CT scans: 
+                for fileName in patient:
+                    if "STRUCT" in fileName:
+                        structFile = fileName   
+                structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+                structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
+                patientStructuresDict[str(patientFolders[p])] =  [structure, structureROINum]
+        
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Processed_Data/Sorted Contour Lists/" + organ + " Bad or No Contours.txt"), "rb") as fp:
+            unmatchedPatientsList = pickle.load(fp)
+
+    else: 
     #Loop through the patients
-    for p in range(len(patientFolders)):
-        patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
-        #get the RTSTRUCT dicom file and get patient 's CT scans: 
-        for fileName in patient:
-            if "STRUCT" in fileName:
-                structFile = fileName   
-        structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-        structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
-        #add to dictionary if structureindex is not 1111 (error code)
-        if structureROINum!= 1111: #error code from FindStructure
-            patientStructuresDict[str(patientFolders[p])] =  [structure, structureROINum]
-        else:
-            unmatchedPatientsList.append(str(patientFolders[p]))   
+        for p in range(len(patientFolders)):
+            patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
+            #get the RTSTRUCT dicom file and get patient 's CT scans: 
+            for fileName in patient:
+                if "STRUCT" in fileName:
+                    structFile = fileName   
+            structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+            structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
+            #add to dictionary if structureindex is not 1111 (error code)
+            if structureROINum!= 1111: #error code from FindStructure
+                patientStructuresDict[str(patientFolders[p])] =  [structure, structureROINum]
+            else:
+                unmatchedPatientsList.append(str(patientFolders[p]))   
 
     #now display these matched structures to the user:
     displayString = str(len(patientStructuresDict)) + "/" + str(len(patientFolders)) + " patients returned a structure for " + organ + "\n\n"
     if len(unmatchedPatientsList) > 0:
-        displayString += "Patients without a corresponding structure: \n"
+        if (preSorted == True):
+            displayString += "Patients without a corresponding structure or a bad contour: \n"
+        else: 
+            displayString += "Patients without a corresponding structure: \n"
         displayString += "-------------------------------------------\n"
         i = 1
         for patient in unmatchedPatientsList:
@@ -51,9 +74,12 @@ def GetTrainingData(patientsPath, organ, save=True):
             i += 1
     else:
         displayString += "Matching structures found for all patients\n"
-        displayString += "------------------------------------------\n"        
-    displayString += "Patients with a corresponding structure: \n"
-    displayString += "-------------------------------------------\n"
+        displayString += "------------------------------------------\n" 
+    if (preSorted == True):
+        displayString += "Patients with a good contour: \n"
+    else: 
+        displayString += "Patients with a corresponding structure: \n"
+        displayString += "-------------------------------------------\n"
     i = 1
     for data in patientStructuresDict:
         displayString += str(i) + ". " + data + ": " + patientStructuresDict[data][0] + "\n"
@@ -230,25 +256,29 @@ def GetTrainingData(patientsPath, organ, save=True):
 
 
         #So some of the contoured organs are incomplete or just not good, and so you don't want to use for training. So what this is doing now is plotting every contour so that you can then decide whether or not to use it for training.
-
-        print("Plotting")
-        #Here we plot a 3d image of the pointcloud from the list of masks. 
-        #First need to convert the masks to contours: 
-        pointCloud = o3d.geometry.PointCloud()
-        pointCloud.points = o3d.utility.Vector3dVector(pointListy[:,:3])
-        o3d.visualization.draw_geometries([pointCloud])
-        while True:
-            try:
-                inp = input("Use for training? (Y/N)")
-                if (inp.lower() == "y"):
-                    save = True
-                    break
-                if inp.lower() == "n":
-                    save = False
-                    break
-            except KeyboardInterrupt:
-                quit()
-            except: pass   
+        #only need to plot the contours if they have not been sorted yet 
+        if (preSorted == False):
+            print("Plotting")
+            #Here we plot a 3d image of the pointcloud from the list of masks. 
+            #First need to convert the masks to contours: 
+            pointCloud = o3d.geometry.PointCloud()
+            pointCloud.points = o3d.utility.Vector3dVector(pointListy[:,:3])
+            o3d.visualization.draw_geometries([pointCloud])
+            while True:
+                try:
+                    inp = input("Use for training? (Y/N)")
+                    if (inp.lower() == "y"):
+                        save = True
+                        break
+                    if inp.lower() == "n":
+                        save = False
+                        break
+                except KeyboardInterrupt:
+                    quit()
+                except: pass  
+        #always want to save the CTs and masks of the good contours 
+        else: 
+            save == True
 
         for zSlice in range(len(CTs)):    
             sliceText = str(zSlice)
