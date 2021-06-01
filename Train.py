@@ -32,7 +32,7 @@ def Train(organ,numEpochs,lr, processData=False, loadModel=False):
     dataPath = 'Processed_Data/' + organ + "/"
     if processData == True:
         patientsPath = 'Patient_Files/'
-        DicomParsing.GetTrainingData(patientsPath, organ) #go through all the dicom files and create the images
+        DicomParsing.GetTrainingData(patientsPath, organ, preSorted = False) #go through all the dicom files and create the images
         print("Data Processed")
     #Now define or load the model and optimizer: 
     epochLossHistory = []
