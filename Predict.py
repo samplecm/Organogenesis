@@ -15,24 +15,27 @@ import Test
 
 
 
-def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True):
+def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoad=True):
+ 
     #with real loads pre=existing DICOM roi to compare the prediction with 
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for training: " + device.type)
+    print("Device being used for predicting: " + device.type)
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
     model.eval()
 
     #Make a list for all the contour images
     try: 
-        CTs = pickle.load(open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + patientFileName + "_Processed.txt")), 'rb'))  
+        CTs = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + patientFileName + "_Processed.txt")), 'rb'))  
     except:
 
-        CTs = DicomParsing.GetPredictionData(patientFileName,organ)
+        CTs = DicomParsing.GetPredictionData(patientFileName, path)
     if tryLoad:
         try:
-            contourImages, contours = pickle.load(open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")),'rb'))      
+            contourImages, contours = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")),'rb'))      
         except: 
             
             contours = []
@@ -59,7 +62,7 @@ def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True
             contours = PostProcessing.FixContours(contours)  
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
-            with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
+            with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
                 pickle.dump([contourImages, contours], fp)           
     else:
         contours = []
@@ -86,12 +89,12 @@ def GetContours(organ, patientFileName, threshold, withReal = True, tryLoad=True
         contours = PostProcessing.FixContours(contours)  
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
-        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
+        with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
             pickle.dump([contourImages, contours], fp)        
     existingContours = []
     if withReal:
         try:
-            existingContours= pickle.load(open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Prediction_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))       
+            existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))       
         except: 
             pass
     Test.PlotPatientContours(contours, existingContours)

@@ -15,15 +15,16 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 
 
-def TestPlot(organ, threshold):
+def TestPlot(organ, path, threshold):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for training: " + device.type)
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
     model = model.to(device)    
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
+    dataFolder = os.path.join(path, dataPath)
     dataFiles = os.listdir(dataFolder)
     filesRange = list(range(len(dataFiles)))
     random.shuffle(filesRange)
@@ -95,23 +96,25 @@ def NormalizeImage(image):
     amin = np.amin(image)
     return (image - amin) / ptp    
 
-def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
+def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=False):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for training: " + device.type)
     #return the model output threshold that maximizes accuracy. onlyMasks if true will calculate statistics
     #only for images that have a mask on the plane, and onlyBackground will do it for images without masks.
     print("Determining most accurate threshold...")
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
     model = model.to(device)     
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
+    dataFolder = os.path.join(path, dataPath)
     dataFiles = os.listdir(dataFolder)
 
     #also get the bools to find if masks are on image plane
     boolPath = 'Processed_Data/' + organ + " bools"
-    boolFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), boolPath)
+    boolFolder = os.path.join(path, boolPath)
     boolFiles = os.listdir(boolFolder)
 
     #shuffle the order (boolFiles is in same order)
@@ -213,14 +216,14 @@ def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
     maxAccuracyIndices = [i for i, j in enumerate(accuracies) if j == maxAccuracy]
     bestThreshold = thresholds[maxAccuracyIndices[0]] 
     #save this threshold
-    thresFile = open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + "_Thres.txt"),'w')
+    thresFile = open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_Thres.txt"),'w')
     thresFile.write(str(bestThreshold))
     thresFile.close()
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + "_Accuracy.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_Accuracy.txt"),'wb') as fp:
         pickle.dump(accuracies, fp)      
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + "_FalseNeg.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FalseNeg.txt"),'wb') as fp:
         pickle.dump(falseNeg, fp)   
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + "_FalsePos.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FalsePos.txt"),'wb') as fp:
         pickle.dump(falsePos, fp)            
     return bestThreshold
 
@@ -308,15 +311,17 @@ def PlotPatientContours(contours, existingContours):
     pointCloud.points = o3d.utility.Vector3dVector(pointList[:,:3])
     o3d.visualization.draw_geometries([pointCloud])
 
-def FScore(organ, threshold):
+def FScore(organ, path, threshold):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for training: " + device.type)
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)
     model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
+    dataFolder = os.path.join(path, dataPath)
     dataFiles = sorted(os.listdir(dataFolder))
     d = 0
     print('Calculating Statistics')
@@ -350,18 +355,20 @@ def FScore(organ, threshold):
             x.requires_grad = True
             y.requires_grad = True
             x = torch.reshape(x, (1,1,xLen,yLen)).float()
-            y = torch.reshape(y, (1,1,xLen,yLen)).float()
+            y = y.cpu().detach().numpy()
+            y =np.reshape(y, (xLen, yLen))
             
             predictionRaw = (model(x)).cpu().detach().numpy()
+            predictionRaw = np.reshape(predictionRaw, (xLen, yLen))
             prediction = PostProcessing.Process(predictionRaw, threshold)
             for x_idx in range(xLen):
                 for y_idx in range(yLen):
-                    if prediction[0,0,x_idx,y_idx] == 1:
-                        if y[0,0,x_idx,y_idx] == 1:
+                    if prediction[x_idx,y_idx] == 1:
+                        if y[x_idx,y_idx] == 1:
                             TP += 1
                         else:
                             FP += 1
-                    elif y[0,0,x_idx,y_idx] == 1:     
+                    elif y[x_idx,y_idx] == 1:     
                         FN += 1  
             print("Finished a patient")            
         print("Finished " + str(d) + "patients...")                     
@@ -375,7 +382,7 @@ def FScore(organ, threshold):
     F_ScoreHyperparameters= []
 
     #load the hyperparamaters of the model
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
+    with open(os.path.join(path, "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
         F_ScoreHyperparameters = pickle.load(fp)
 
     F_ScoreHyperparameters.append(["F Score", F_score])
@@ -384,7 +391,7 @@ def FScore(organ, threshold):
     F_ScoreHyperparameters.append(["Accuracy", accuracy])
 
     #save the hyperparamters and F score data for the model 
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Evaluation Data\EvaluationData_Model_" + organ.replace(" ", "") + ".txt"), "w") as fp:
+    with open(os.path.join(path, "Evaluation Data\EvaluationData_Model_" + organ.replace(" ", "") + ".txt"), "w") as fp:
         for data in F_ScoreHyperparameters:
             for element in data:
                 fp.write(str(element)+ " ")
