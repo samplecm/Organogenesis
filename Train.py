@@ -30,18 +30,16 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
     #See if cuda is available, and set the device as either cuda or cpu if is isn't available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for training: " + device.type)
-
     dataPath = 'Processed_Data/' + organ + "/"
-    if processData == True:
-        if path==None: #if a path to data was not supplied, assume that patient data has been placed in the Patient_Files folder in the current directory. 
+    if path==None: #if a path to data was not supplied, assume that patient data has been placed in the Patient_Files folder in the current directory. 
             patientsPath = 'Patient_Files/'
             filesFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), patientsPath)
             dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath) #this gives the absolute folder reference of the datapath variable defined above
-        else: 
-            filesFolder = path
-            modelPath = os.path.join(path, "Models")
-            dataFolder = os.path.join(path, dataPath)
-
+    else: 
+        filesFolder = path
+        modelPath = os.path.join(path, "Models")
+        dataFolder = os.path.join(path, dataPath)   
+        if processData == True:
             #Now if a path has been specified, then the Model folder must be in this path as well. 
             #check for the model path:
             if not os.path.isdir(modelPath):
@@ -75,14 +73,14 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
                         except KeyboardInterrupt:
                             quit()    
                         except: pass  
+
             #Now run the FolderSetup.sh Script in the given directory to make sure all directories are present
             shutil.copy('FolderSetup.sh', path)
             os.chdir(path)
             subprocess.call(['sh', './FolderSetup.sh'])             
-
-
-        DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
-        print("Data Processed")
+    
+    DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
+    print("Data Processed")
     #Now define or load the model and optimizer: 
     epochLossHistory = []
     trainLossHistory = []

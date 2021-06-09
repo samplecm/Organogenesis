@@ -105,15 +105,15 @@ if __name__ == "__main__":
     #Training parameters:    
     parser.add_argument("--lr", help="Specify the learning rate desired for model training.", default=None, type=float)
     parser.add_argument("--epochs", help="Specify the number of epochs to train the model for", default=None, type=int)
-    parser.add_argument("--processData", help="True or False. True if patient DICOM data has already been processed into training/validation/test folders", default=True, choices=[True,False],type=bool)
-    parser.add_argument("--loadModel", help="True/False. True if a pre-existing model is to be loaded for continuing of training.", default=False, choices=[True,False],type=bool)
+    parser.add_argument("--processData", help="True or False. True if patient DICOM data has already been processed into training/validation/test folders", default=False, action='store_true')
+    parser.add_argument("--loadModel", help="True/False. True if a pre-existing model is to be loaded for continuing of training.", default=False, action='store_true')
     parser.add_argument("--dataPath", help="If data is not prepared in patient_files folder, specify the path to the directory containing all patient directories.",type=str, default=None)
-    parser.add_argument("--preSorted", help="Specify whether or not patient data has already been sorted by \"good\" and \"bad\" contours", type=bool, default=False)
+    parser.add_argument("--preSorted", help="Specify whether or not patient data has already been sorted by \"good\" and \"bad\" contours", default=False, action='store_true')
     #GetContours parameters:
     parser.add_argument("--predictionPatientName", help= "Specify the name of the patient in the Predictions_Patient folder that you wish to predict contours for. Alternatively, supply the full path a patient's folder.",type=str, default=None)
     parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model", type=float, default=None)
-    parser.add_argument("--contoursWithReal", help="True/False. In GetContours, there is an option to plot predicted contours alongside the DICOM files manually contoured ones.", choices=[True,False], type=bool, default=False)
-    parser.add_argument("--loadContours", help="True/False. If the contours have already been created previously, tryLoad will attempt to load the processed data to save time.", choices=[True,False], type= bool, default=False)
+    parser.add_argument("--contoursWithReal", help="True/False. In GetContours, there is an option to plot predicted contours alongside the DICOM files manually contoured ones.", default=False , action='store_true')
+    parser.add_argument("--loadContours", help="True/False. If the contours have already been created previously, tryLoad will attempt to load the processed data to save time.", default=False, action='store_true')
     
 
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
             while True:
                 try:
                     numEpochs = input("\nPlease specify the number of epochs\n >")
-                    numEpochs = int(lr)
+                    numEpochs = int(numEpochs)
                     break    
                 except KeyboardInterrupt:
                     quit()
