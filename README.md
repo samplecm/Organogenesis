@@ -45,6 +45,9 @@ There are also other function arguments which can be supplied, and some of them 
 
 All other arguments have two dashes (--) followed by the argument keyword without a space, and then the value. See TrainScript.sh as an example, and use Menu.py to view the other possible options.
 
+certain arguments are boolean actions such as --processData, -loadModel, --preSorted, --contoursWithReal, --loadContours. 
+These arguments don't need to be followed by any string, but are simply called if that boolean action is desired by the user. 
+
 One noteable keyword is --dataPath, which can be set to a directory containing patient folders, which themselves have all the DICOM files in the same directory. If this keyword is set, then data will all be written to folders in this dataPath, rather than
 the folders in the Organogenesis directory.
 
