@@ -27,60 +27,70 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
     #loadModel is true when you already have a model that you wish to continue training
     #First extract patient training data and process it for each, saving it into Processed_Data folder
 
-    #See if cuda is available, and set the device as either cuda or cpu if is isn't available
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for training: " + device.type)
+    
     dataPath = 'Processed_Data/' + organ + "/"
     if path==None: #if a path to data was not supplied, assume that patient data has been placed in the Patient_Files folder in the current directory. 
-            patientsPath = 'Patient_Files/'
-            filesFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), patientsPath)
-            dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath) #this gives the absolute folder reference of the datapath variable defined above
+        patientsPath = 'Patient_Files/'
+        filesFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), patientsPath)
+        dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath) #this gives the absolute folder reference of the datapath variable defined above
+        if processData:
+            DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
+            print("Data Processed")
+        
     else: 
         filesFolder = path
         modelPath = os.path.join(path, "Models")
         dataFolder = os.path.join(path, dataPath)   
-        if processData == True:
-            #Now if a path has been specified, then the Model folder must be in this path as well. 
+        #Now if a path has been specified, then the Model folder must be in this path as well. 
             #check for the model path:
-            if not os.path.isdir(modelPath):
-                #create the model path if it was not there, and refuse to load a model. 
-                os.mkdir(modelPath)
-                if loadModel:
-                    loadModel = False 
-                    modelErrorMessage = "Model directory was not found in the provided path. Model will not be loaded for training. A new model will be created in the directory.\n \
+        if not os.path.isdir(modelPath):
+            #create the model path if it was not there, and refuse to load a model. 
+            os.mkdir(modelPath)
+            if loadModel:
+                loadModel = False 
+                modelErrorMessage = "Model directory was not found in the provided path. Model will not be loaded for training. A new model will be created in the directory.\n \
+                    press enter to continue"
+                while True: #wait for user input    
+                    try:
+                        input = input(modelErrorMessage)
+                        if input == "":
+                            break
+                    except KeyboardInterrupt:
+                        quit()    
+                    except: pass   
+            
+        #Furthermore, if processData is false, then there must exist the Processed_Data folder
+        if not processData:
+            dataPath = os.path.join(path, "Processed_Data")
+            if not os.path.isdir(dataPath): #If the processedData folder doesnt exist, then itll have to be made and data processed.
+                processData=True
+                preSorted=False 
+                dataErrorMessage = "Processed_Data directory was not found in the provided path. Data will have to be processed.\n \
                         press enter to continue"
-                    while True: #wait for user input    
-                        try:
-                            input = input(modelErrorMessage)
-                            if input == "":
-                                break
-                        except KeyboardInterrupt:
-                            quit()    
-                        except: pass   
-            #Furthermore, if processData is false, then there must exist the Processed_Data folder
-            if not processData:
-                dataPath = os.path.join(path, "Processed_Data")
-                if not os.path.isdir(dataPath):
-                    processData=True
-                    preSorted=False 
-                    dataErrorMessage = "Processed_Data directory was not found in the provided path. Data will have to be processed.\n \
-                            press enter to continue"
-                    while True: #wait for user input    
-                        try:
-                            input = input(dataErrorMessage)
-                            if input == "":
-                                break
-                        except KeyboardInterrupt:
-                            quit()    
-                        except: pass  
-
-            #Now run the FolderSetup.sh Script in the given directory to make sure all directories are present
+                while True: #wait for user input    
+                    try:
+                        input = input(dataErrorMessage)
+                        if input == "":
+                            break
+                    except KeyboardInterrupt:
+                        quit()    
+                    except: pass  
+                #Now run the FolderSetup.sh Script in the given directory to make sure all directories are present
+                shutil.copy('FolderSetup.sh', path)
+                os.chdir(path)
+                subprocess.call(['sh', './FolderSetup.sh'])                 
+                DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
+                print("Data Processed")
+        else:
             shutil.copy('FolderSetup.sh', path)
             os.chdir(path)
-            subprocess.call(['sh', './FolderSetup.sh'])             
-    
-    DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
-    print("Data Processed")
+            subprocess.call(['sh', './FolderSetup.sh'])                 
+            DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
+            print("Data Processed")
+
+    #See if cuda is available, and set the device as either cuda or cpu if is isn't available
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Device being used for training: " + device.type)
     #Now define or load the model and optimizer: 
     epochLossHistory = []
     trainLossHistory = []
