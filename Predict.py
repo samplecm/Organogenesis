@@ -15,7 +15,7 @@ import Test
 
 
 
-def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoad=True):
+def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoad=True, plot=True):
  
     #with real loads pre=existing DICOM roi to compare the prediction with 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
@@ -26,13 +26,14 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
     model.eval()
-
+    contoursList = [] #The 1d contours list to be returned
+    existingContoursList = []
     #Make a list for all the contour images
     try: 
         CTs = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + patientFileName + "_Processed.txt")), 'rb'))  
     except:
 
-        CTs = DicomParsing.GetPredictionData(patientFileName, path)
+        CTs = DicomParsing.GetPredictionCTs(patientFileName, path)
     if tryLoad:
         try:
             contourImages, contours = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")),'rb'))      
@@ -62,6 +63,15 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
             contours = PostProcessing.FixContours(contours)  
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+            for layer_idx in range(len(contours)):
+                if len(contours[layer_idx]) > 0:
+                    for point_idx in range(len(contours[layer_idx])):
+                        x = contours[layer_idx][point_idx][0]
+                        y = contours[layer_idx][point_idx][1]
+                        z = contours[layer_idx][point_idx][2]
+                        contoursList.append(x)
+                        contoursList.append(y)
+                        contoursList.append(z)
             with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
                 pickle.dump([contourImages, contours], fp)           
     else:
@@ -89,15 +99,52 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
         contours = PostProcessing.FixContours(contours)  
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+
+        for layer_idx in range(len(contours)):
+            if len(contours[layer_idx]) > 0:
+                for point_idx in range(len(contours[layer_idx])):
+                    x = contours[layer_idx][point_idx][0]
+                    y = contours[layer_idx][point_idx][1]
+                    z = contours[layer_idx][point_idx][2]
+                    contoursList.append(x)
+                    contoursList.append(y)
+                    contoursList.append(z)
+
+
+
+
         with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
-            pickle.dump([contourImages, contours], fp)        
+            pickle.dump([contourImages, contours], fp)      
+
     existingContours = []
+    
     if withReal:
         try:
-            existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))       
+            existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))  
+            for layer_idx in range(len(existingContours)):
+                if len(existingContours[layer_idx]) > 0:
+                    for point_idx in range(len(existingContours[layer_idx])):
+                        x = existingContours[layer_idx][point_idx][0]
+                        y = existingContours[layer_idx][point_idx][1]
+                        z = existingContours[layer_idx][point_idx][2]     
+                        existingContoursList.append(x)
+                        existingContoursList.append(y)
+                        existingContoursList.append(z)
         except: 
-            pass
-    Test.PlotPatientContours(contours, existingContours)
+            existingContours = DicomParsing.GetDICOMContours(patientFileName, organ, path)
+            for layer_idx in range(len(existingContours)):
+                if len(existingContours[layer_idx]) > 0:
+                    for point_idx in range(len(existingContours[layer_idx])):
+                        x = existingContours[layer_idx][point_idx][0]
+                        y = existingContours[layer_idx][point_idx][1]
+                        z = existingContours[layer_idx][point_idx][2]
+                        existingContoursList.append(x)
+                        existingContoursList.append(y)
+                        existingContoursList.append(z)
+    if plot==True:    
+        Test.PlotPatientContours(contours, existingContours)
+    return contoursList, existingContoursList    
+
 
 
 

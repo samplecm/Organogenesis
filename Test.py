@@ -74,7 +74,54 @@ def TestPlot(organ, path, threshold):
         # axs[2,1].set_title("Predicted Background")
         plt.show()
         
+def GetMasks(organ, patientName, threshold):
+    #Returns a 3d array of predicted masks for a given patient name. 
 
+    path = pathlib.Path(__file__).parent.absolute()    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = Model.UNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model = model.to(device)    
+    model.eval()
+
+    dataPath = 'Processed_Data/' + organ #+ "_Val/" #Currently looking for patients in the test folder. 
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = os.listdir(dataFolder)
+    filesRange = list(range(len(dataFiles)))
+
+    patientImages = []
+    for d in filesRange: #First get the files for the patientName given
+        if patientName in dataFiles[d]:
+            patientImages.append(dataFiles[d])
+    patientImages.sort()    
+
+    predictions = [] #First put 2d masks into predictions list and then at the end stack into a 3d array
+    for image in patientImages:
+        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
+        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
+        x = torch.from_numpy(data[0, :, :])
+        y = torch.from_numpy(data[1:2, :,:])
+        x = x.to(device)
+        y = y.to(device)
+        xLen, yLen = x.shape
+        #need to reshape 
+        x = torch.reshape(x, (1,1,xLen,yLen)).float()
+        y = torch.reshape(y, (1,1,xLen,yLen)).float()   
+        predictionRaw = (model(x)).cpu().detach().numpy()
+        #now post-process the image
+        x = x.cpu()
+        y = y.cpu()
+        x = x.numpy()
+        y = y.numpy()
+        prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
+        predictions.append(prediction)
+    #Stack into 3d array    
+    predictionsArray = predictions[0]    
+    #for i in list(range(1,len(predictions))):
+    predictionsArray = np.stack(predictions, axis=0)
+    return predictionsArray    
+
+        
 
 def MaskOnImage(image, mask):
     xLen, yLen = image.shape
@@ -269,7 +316,6 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     #Now need to make a numpy array as a list of points
 
 def PlotPatientContours(contours, existingContours):
-    #overload having existing patient contour to plot as well
     pointCloud = o3d.geometry.PointCloud()
     numPoints = 0
     points = []
