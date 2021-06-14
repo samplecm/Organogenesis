@@ -178,6 +178,20 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
         with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + "epochLossHistory" + ".txt")), "wb") as fp:
             pickle.dump(sum(epochLossHistory)/len(epochLossHistory), fp)  
 
+        #check if the change in validation loss was < 0.001 for 4 epochs
+        stopCount = 0   
+        if len(epochLossHistory) > 4:
+            for i in range(1,5):
+                changeEpochLoss = epochLossHistory[len(epochLossHistory)-i] - epochLossHistory[len(epochLossHistory)-1-i]
+                if changeEpochLoss > 0 or changeEpochLoss < -0.001:
+                    break
+                else: 
+                    stopCount += 1
+
+        #exit the program if the change in validation loss was < 0.001 for at least 4 epochs 
+        if stopCount == 4: 
+            os._exit(0)
+
          
 
 def Validate(organ, model):
