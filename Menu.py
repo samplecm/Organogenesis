@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 #local dependencies:
+from numpy.core.fromnumeric import shape
 import DicomParsing
 import Train
 import Test
@@ -77,14 +78,16 @@ def main():
 
         Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
-        Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.15, withReal=True, tryLoad=False) 
+        contoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.15, withReal=True, tryLoad=False) 
     elif task == 3:
         Test.Best_Threshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
         F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2)    
         print([F_Score, recall, precision, accuracy])
     elif task == 5:
-        Test.TestPlot(OARs[chosenOAR], path, threshold=0.1) 
+        array = Test.GetMasks(OARs[chosenOAR], "HN1004", threshold=0.1)
+        print(array.shape)
+        #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
 
 
    
