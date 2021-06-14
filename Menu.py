@@ -72,28 +72,26 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 7, 1e-3, processData=True, loadModel=False)
+        Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=True, loadModel=False, preSorted=True)
         Test.Best_Threshold(OARs[chosenOAR],400)
 
-        Test.TestPlot(OARs[chosenOAR], threshold=0.1)  
+        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
-        Predict.GetContours(OARs[chosenOAR],"P85", threshold = 0.15, withReal=True, tryLoad=False) 
+        Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.15, withReal=True, tryLoad=False) 
     elif task == 3:
-        Test.Best_Threshold(OARs[chosenOAR],  testSize=500, onlyMasks=False,onlyBackground=False)
+        Test.Best_Threshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
         F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2)    
         print([F_Score, recall, precision, accuracy])
     elif task == 5:
-        Test.TestPlot(OARs[chosenOAR], threshold=0.1) 
-    elif task == 6:
-        PostProcessing.Export_To_ONNX(OARs[chosenOAR])    
-    elif task == 7:
-        PostProcessing.Infer_From_ONNX(OARs[chosenOAR], 'P7')        #option 6 and 7 can be removed, not trying to work with ONNX models anymore
-        
+        Test.TestPlot(OARs[chosenOAR], path, threshold=0.1) 
+
 
    
 
 if __name__ == "__main__":
+    
+        
     parser = argparse.ArgumentParser(
         description="Organogenesis: an open source program for autosegmentation of medical images"
     )
@@ -118,155 +116,160 @@ if __name__ == "__main__":
 
 
     args = parser.parse_args()
-    print("Welcome to Organogenesis")
-    print("------------------")
+    v = vars(args)
+    n_args = sum([ 1 for a in v.values( ) if a])
+    if (n_args == 0):
+        main()
+    else:
+        print("Welcome to Organogenesis")
+        print("------------------")
 
-    #Now ensure that a proper organ has been supplied. 
-    organ = ""
+        #Now ensure that a proper organ has been supplied. 
+        organ = ""
 
-    organMatch = False
-    for key in organOps:
-        if (re.match(organOps[key], args.organ)): 
-            organMatch = True
-            organ = key 
-            print("Selected Organ:" + key)
+        organMatch = False
+        for key in organOps:
+            if (re.match(organOps[key], args.organ)): 
+                organMatch = True
+                organ = key 
+                print("Selected Organ:" + key)
 
-    if (args.organ == None) or (organMatch==False):
-        while True: #get user input
-            organMatch = False 
-            try:
-                organSelection = input("\nPlease specify a proper organ that you wish to train or use a model for predicting. \n\nPlease choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \
-                    \n left-submandibular, \n right-submandibular, \n brain-stem, \n larynx/laryngopharynx \n >")
-                for key in organOps:
-                    if (re.match(organOps[key], organSelection.lower())):
-                        print("Selected Organ:" + key)
-                        organMatch = True
-                        organ = key
-                        break
-                if organMatch:
-                    break    
-            except KeyboardInterrupt:
-                quit()
-            except: pass  
-
-    #Now ensure that a proper function has been requested         
-    functionMatch = False 
-    for function in functionOps:
-        if function == args.function:
-            functionMatch = True 
-            break
-    if not functionMatch:
-        while True: #get user input 
-            try:
-                functionSelection = input("\nPlease specify the function to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
-        \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"FScore\": calculate the F score for the given organ's model, \
-        \"PlotMasks\": Plot 2d CTs with both manually drawn and predicted masks for visual comparison \n >")
-                for function in functionOps:
-                    if (function == functionSelection):
-                        print("Selected:" + functionSelection)
-                        functionMatch = True
-                        organ = key
-                        break
-                if functionMatch:
-                    break    
-            except KeyboardInterrupt:
-                quit()
-            except: pass  
-    else: 
-        print("Selected:" + args.function)        
-
-
-    #Now perform the specified function:
-    if args.function == "Train":
-
-        #Get learning rate
-        lr = args.lr
-        if (lr == None):
-            while True:
+        if (args.organ == None) or (organMatch==False):
+            while True: #get user input
+                organMatch = False 
                 try:
-                    lr = input("\nPlease specify the learning rate\n >")
-                    lr = float(lr)
-                    break    
-                except KeyboardInterrupt:
-                    quit()
-                except: pass  
-        #Get number of epochs
-        numEpochs = args.epochs
-        if (numEpochs == None):
-            while True:
-                try:
-                    numEpochs = input("\nPlease specify the number of epochs\n >")
-                    numEpochs = int(numEpochs)
-                    break    
-                except KeyboardInterrupt:
-                    quit()
-                except: pass  
-
-        processData = args.processData
-        loadModel = args.loadModel
-        dataPath = args.dataPath #If dataPath is None, then the program uses the data in the patient_files folder. If it is a path to a directory, data will be processed in this directory. 
-        preSorted = args.preSorted
-
-        Train.Train(organ, numEpochs, lr, dataPath, processData, loadModel, preSorted)
-        bestThreshold = Test.BestThreshold(organ, dataPath, 400)
-
-        Test.TestPlot(organ, dataPath, threshold=bestThreshold)  
-
-    elif args.function == "GetContours":
-        patient = args.predictionPatientName
-        if (patient == None):
-            while True:
-                try:
-                    patient = input("\nPlease specify the name of the patient folder that you are trying to get contours for\n >")
-                    if patient != "":
+                    organSelection = input("\nPlease specify a proper organ that you wish to train or use a model for predicting. \n\nPlease choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \
+                        \n left-submandibular, \n right-submandibular, \n brain-stem, \n larynx/laryngopharynx \n >")
+                    for key in organOps:
+                        if (re.match(organOps[key], organSelection.lower())):
+                            print("Selected Organ:" + key)
+                            organMatch = True
+                            organ = key
+                            break
+                    if organMatch:
                         break    
                 except KeyboardInterrupt:
                     quit()
                 except: pass  
-        thres = args.thres
-        if thres == None:
-            while True:
-                try:
-                    thres = float(input("Please specify the threshold to be used for contour prediction\n >"))       
-                    break
-                except KeyboardInterrupt:
-                    quit
-                except: pass     
-        tryLoad = args.loadContours
-        withReal = args.contoursWithReal   
-        path = args.dataPath     
-        Predict.GetContours(organ ,patient,path, threshold = 0.15, withReal=True, tryLoad=False) 
 
-    elif args.function == "BestThreshold":
-        path = args.dataPath     
-        Test.BestThreshold(organ, path, 500)
-
-    elif args.function == "FScore":
-        thres = args.thres
-        if thres == None:
-            while True:
+        #Now ensure that a proper function has been requested         
+        functionMatch = False 
+        for function in functionOps:
+            if function == args.function:
+                functionMatch = True 
+                break
+        if not functionMatch:
+            while True: #get user input 
                 try:
-                    thres = float(input("Please specify the threshold to be used for contour prediction\n >"))       
-                    break
+                    functionSelection = input("\nPlease specify the function to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
+            \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"FScore\": calculate the F score for the given organ's model, \
+            \"PlotMasks\": Plot 2d CTs with both manually drawn and predicted masks for visual comparison \n >")
+                    for function in functionOps:
+                        if (function == functionSelection):
+                            print("Selected:" + functionSelection)
+                            functionMatch = True
+                            organ = key
+                            break
+                    if functionMatch:
+                        break    
                 except KeyboardInterrupt:
-                    quit
-                except: pass     
-        path = args.dataPath            
-        F_Score, recall, precision, accuracy = Test.FScore(organ, path, thres)    
-        print([F_Score, recall, precision, accuracy])
+                    quit()
+                except: pass  
+        else: 
+            print("Selected:" + args.function)        
 
-    elif args.function == "PlotMasks":
-        thres = args.thres
-        if thres == None:
-            while True:
-                try:
-                    thres = float(input("Please specify the threshold to be used for contour prediction\n >"))       
-                    break
-                except KeyboardInterrupt:
-                    quit
-                except: pass     
-        path = args.dataPath 
-        Test.TestPlot(organ, path, threshold=thres)  
+
+        #Now perform the specified function:
+        if args.function == "Train":
+
+            #Get learning rate
+            lr = args.lr
+            if (lr == None):
+                while True:
+                    try:
+                        lr = input("\nPlease specify the learning rate\n >")
+                        lr = float(lr)
+                        break    
+                    except KeyboardInterrupt:
+                        quit()
+                    except: pass  
+            #Get number of epochs
+            numEpochs = args.epochs
+            if (numEpochs == None):
+                while True:
+                    try:
+                        numEpochs = input("\nPlease specify the number of epochs\n >")
+                        numEpochs = int(numEpochs)
+                        break    
+                    except KeyboardInterrupt:
+                        quit()
+                    except: pass  
+
+            processData = args.processData
+            loadModel = args.loadModel
+            dataPath = args.dataPath #If dataPath is None, then the program uses the data in the patient_files folder. If it is a path to a directory, data will be processed in this directory. 
+            preSorted = args.preSorted
+
+            Train.Train(organ, numEpochs, lr, dataPath, processData, loadModel, preSorted)
+            bestThreshold = Test.BestThreshold(organ, dataPath, 400)
+
+            Test.TestPlot(organ, dataPath, threshold=bestThreshold)  
+
+        elif args.function == "GetContours":
+            patient = args.predictionPatientName
+            if (patient == None):
+                while True:
+                    try:
+                        patient = input("\nPlease specify the name of the patient folder that you are trying to get contours for\n >")
+                        if patient != "":
+                            break    
+                    except KeyboardInterrupt:
+                        quit()
+                    except: pass  
+            thres = args.thres
+            if thres == None:
+                while True:
+                    try:
+                        thres = float(input("Please specify the threshold to be used for contour prediction\n >"))       
+                        break
+                    except KeyboardInterrupt:
+                        quit
+                    except: pass     
+            tryLoad = args.loadContours
+            withReal = args.contoursWithReal   
+            path = args.dataPath     
+            Predict.GetContours(organ ,patient,path, threshold = 0.15, withReal=True, tryLoad=False) 
+
+        elif args.function == "BestThreshold":
+            path = args.dataPath     
+            Test.BestThreshold(organ, path, 500)
+
+        elif args.function == "FScore":
+            thres = args.thres
+            if thres == None:
+                while True:
+                    try:
+                        thres = float(input("Please specify the threshold to be used for contour prediction\n >"))       
+                        break
+                    except KeyboardInterrupt:
+                        quit
+                    except: pass     
+            path = args.dataPath            
+            F_Score, recall, precision, accuracy = Test.FScore(organ, path, thres)    
+            print([F_Score, recall, precision, accuracy])
+
+        elif args.function == "PlotMasks":
+            thres = args.thres
+            if thres == None:
+                while True:
+                    try:
+                        thres = float(input("Please specify the threshold to be used for contour prediction\n >"))       
+                        break
+                    except KeyboardInterrupt:
+                        quit
+                    except: pass     
+            path = args.dataPath 
+            Test.TestPlot(organ, path, threshold=thres)  
 
 
 
