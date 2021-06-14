@@ -85,9 +85,9 @@ def main():
         F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2)    
         print([F_Score, recall, precision, accuracy])
     elif task == 5:
-        array = Test.GetMasks(OARs[chosenOAR], "HN1004", threshold=0.1)
-        print(array.shape)
-        #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
+        # array = Test.GetMasks(OARs[chosenOAR], "HN1004", threshold=0.1)
+        # print(array.shape)
+        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
 
 
    
