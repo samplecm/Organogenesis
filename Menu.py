@@ -73,15 +73,15 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=True, loadModel=False, preSorted=True)
-        Test.Best_Threshold(OARs[chosenOAR],400)
+        Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=False, loadModel=False, preSorted=True)
+        Test.BestThreshold(OARs[chosenOAR],400)
 
         Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
         contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.15, withReal=True, tryLoad=False) 
         
     elif task == 3:
-        Test.Best_Threshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
+        Test.BestThreshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
         F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2)    
         print([F_Score, recall, precision, accuracy])
