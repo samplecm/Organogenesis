@@ -114,8 +114,6 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
     A.ElasticTransform(p=0.5, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03)
     ])
 
-    stopCount = 0
-
     print("Beginning Training")    
     iteration = 0
     #Criterion = F.binary_cross_entropy_with_logits()#nn.BCEWithLogitsLoss() I now just define this in the model
@@ -171,10 +169,6 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
 
         epochLoss = Validate(organ, UNetModel) #validation step
         epochLossHistory.append(epochLoss)
-        #check if the change in validation loss is < 0.001
-        changeEpochLoss = epochLossHistory[len(epochLossHistory)-2] - epochLossHistory[len(epochLossHistory)-1]
-        if changeEpochLoss < 0.001 and changeEpochLoss >= 0:
-            stopCount +=1
         print('Epoch # {},  Loss: {}'.format(epoch+1, epochLoss))            
                 #reshape to have batch dimension in front
        
@@ -184,8 +178,18 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
         with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + "epochLossHistory" + ".txt")), "wb") as fp:
             pickle.dump(sum(epochLossHistory)/len(epochLossHistory), fp)  
 
+        #check if the change in validation loss was < 0.001 for 4 epochs
+        stopCount = 0   
+        if len(epochLossHistory) > 4:
+            for i in range(1,5):
+                changeEpochLoss = epochLossHistory[len(epochLossHistory)-i] - epochLossHistory[len(epochLossHistory)-1-i]
+                if changeEpochLoss > 0 or changeEpochLoss < -0.001:
+                    break
+                else: 
+                    stopCount += 1
+
         #exit the program if the change in validation loss was < 0.001 for at least 4 epochs 
-        if stopCount > 3: 
+        if stopCount == 4: 
             os._exit(0)
 
          
