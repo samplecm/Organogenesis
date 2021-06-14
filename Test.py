@@ -316,7 +316,6 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     #Now need to make a numpy array as a list of points
 
 def PlotPatientContours(contours, existingContours):
-    #overload having existing patient contour to plot as well
     pointCloud = o3d.geometry.PointCloud()
     numPoints = 0
     points = []

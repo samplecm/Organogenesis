@@ -27,13 +27,13 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
     model = model.to(device)    
     model.eval()
     contoursList = [] #The 1d contours list to be returned
-
+    existingContoursList = []
     #Make a list for all the contour images
     try: 
         CTs = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + patientFileName + "_Processed.txt")), 'rb'))  
     except:
 
-        CTs = DicomParsing.GetPredictionData(patientFileName, path)
+        CTs = DicomParsing.GetPredictionCTs(patientFileName, path)
     if tryLoad:
         try:
             contourImages, contours = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")),'rb'))      
@@ -112,18 +112,38 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
 
 
 
+
         with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
             pickle.dump([contourImages, contours], fp)      
 
     existingContours = []
+    
     if withReal:
         try:
-            existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))       
+            existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))  
+            for layer_idx in range(len(existingContours)):
+                if len(existingContours[layer_idx]) > 0:
+                    for point_idx in range(len(existingContours[layer_idx])):
+                        x = existingContours[layer_idx][point_idx][0]
+                        y = existingContours[layer_idx][point_idx][1]
+                        z = existingContours[layer_idx][point_idx][2]     
+                        existingContoursList.append(x)
+                        existingContoursList.append(y)
+                        existingContoursList.append(z)
         except: 
-            pass
+            existingContours = DicomParsing.GetDICOMContours(patientFileName, organ, path)
+            for layer_idx in range(len(existingContours)):
+                if len(existingContours[layer_idx]) > 0:
+                    for point_idx in range(len(existingContours[layer_idx])):
+                        x = existingContours[layer_idx][point_idx][0]
+                        y = existingContours[layer_idx][point_idx][1]
+                        z = existingContours[layer_idx][point_idx][2]
+                        existingContoursList.append(x)
+                        existingContoursList.append(y)
+                        existingContoursList.append(z)
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
-    return contoursList    
+    return contoursList, existingContoursList    
 
 
 

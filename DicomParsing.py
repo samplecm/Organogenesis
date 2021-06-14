@@ -322,7 +322,7 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
 
         
         
-def GetPredictionData(patientFileName, path):
+def GetPredictionCTs(patientFileName, path):
     #This prepares data to be used for predicting and not training, so it is not necessary to supply contours corresponding to images
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
@@ -334,12 +334,10 @@ def GetPredictionData(patientFileName, path):
 
     #Can add new structures to this existing structure set if need be        
     patient_CTs = []
-    patient_Struct = []
+
     for fileName in patientFolder:
         if "CT" in fileName and "STRUCT" not in fileName:
-            patient_CTs.append(os.path.join(patientPath, fileName))
-        elif "STRUCT" in fileName:
-            structFile = fileName      
+            patient_CTs.append(os.path.join(patientPath, fileName))  
     iop = dcmread(patient_CTs[0]).get("ImageOrientationPatient")
     ipp = dcmread(patient_CTs[0]).get("ImagePositionPatient")
     #also need the pixel spacing
@@ -363,8 +361,54 @@ def GetPredictionData(patientFileName, path):
     with open(os.path.join(path, str("Predictions_Patients/" + patientFileName  + "_Processed.txt")), "wb") as fp:
         pickle.dump(CTs, fp)  
     return CTs 
-                    
-            
+
+def GetDICOMContours(patientFileName, organ, path):
+#This prepares data to be used for predicting and not training, so it is not necessary to supply contours corresponding to images
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()   
+
+    patientPath = "Patient_Files/" + patientFileName
+    #get the list of patient folders
+    patientPath = os.path.join(path, patientPath)
+    patientFolder = sorted(os.listdir(patientPath))
+
+    structFile = ""
+    for fileName in patientFolder:
+        if "STRUCT" in fileName:
+            structFile = os.path.join(patientPath, fileName)   
+    structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+    _, roiNumber = FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)        
+    
+    structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+    #print(dcmread(patient1_Struct[0]).data_element("ROIContourSequence")[0])
+    #collect array of contour points for test plotting
+    numContourPoints = 0 
+    contours = []
+    for contourInfo in structsMeta:
+        if contourInfo.get("ReferencedROINumber") == roiNumber: #get the correct contour for the given organ
+            for contoursequence in contourInfo.ContourSequence: 
+                contours.append(contoursequence.ContourData)
+                #But this is easier to work with if we convert from a 1d to a 2d list for contours ( [ [x1,y1,z1], [x2,y2,z2] ... ] )
+                tempContour = []
+                i = 0
+                while i < len(contours[-1]):
+                    x = float(contours[-1][i])
+                    y = float(contours[-1][i + 1])
+                    z = float(contours[-1][i + 2])
+                    tempContour.append([x, y, z ])
+                    i += 3
+                    if (numContourPoints > 0):
+                        pointListy = np.vstack((pointListy, np.array([x,y,z])))
+                    else:
+                        pointListy = np.array([x,y,z])   
+                    numContourPoints+=1       
+                contours[-1] = tempContour            
+
+    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName  + "_predictedContours.txt")), "wb") as fp:
+        pickle.dump(contours, fp)  
+    return contours
+                
+        
 
 
 def FindStructure(metadata, organ, invalidStructures = []):
