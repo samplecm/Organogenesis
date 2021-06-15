@@ -1,6 +1,7 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
 import Model
+import Predict
 import torch
 import torch.nn as nn
 import pickle
@@ -13,17 +14,19 @@ import open3d as o3d
 import plotly.graph_objects as graph_objects
 from mpl_toolkits.mplot3d import Axes3D 
 from matplotlib import cm
+from scipy.spatial.distance import directed_hausdorff
 
 
-def TestPlot(organ, threshold):
+def TestPlot(organ, path, threshold):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for training: " + device.type)
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
     model = model.to(device)    
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
+    dataFolder = os.path.join(path, dataPath)
     dataFiles = os.listdir(dataFolder)
     filesRange = list(range(len(dataFiles)))
     random.shuffle(filesRange)
@@ -73,7 +76,51 @@ def TestPlot(organ, threshold):
         # axs[2,1].set_title("Predicted Background")
         plt.show()
         
+def GetMasks(organ, patientName, threshold):
+    #Returns a 3d array of predicted masks for a given patient name. 
 
+    path = pathlib.Path(__file__).parent.absolute()    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = Model.UNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model = model.to(device)    
+    model.eval()
+
+    dataPath = 'Processed_Data/' + organ #+ "_Val/" #Currently looking for patients in the test folder. 
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = os.listdir(dataFolder)
+    filesRange = list(range(len(dataFiles)))
+
+    patientImages = []
+    for d in filesRange: #First get the files for the patientName given
+        if patientName in dataFiles[d]:
+            patientImages.append(dataFiles[d])
+    patientImages.sort()    
+
+    predictions = [] #First put 2d masks into predictions list and then at the end stack into a 3d array
+    originalMasks = []
+    for image in patientImages:
+        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
+        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
+        x = torch.from_numpy(data[0, :, :])
+        y = data[1,:,:]
+        x = x.to(device)
+        xLen, yLen = x.shape
+        #need to reshape 
+        x = torch.reshape(x, (1,1,xLen,yLen)).float()
+        predictionRaw = (model(x)).cpu().detach().numpy()
+        #now post-process the image
+        x = x.cpu()
+        x = x.numpy()
+        prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
+        predictions.append(prediction)
+        originalMasks.append(y)
+    #Stack into 3d array    
+    predictionsArray = np.stack(predictions, axis=0)
+    originalsArray = np.stack(originalMasks, axis=0)
+    return predictionsArray, originalsArray  
+
+        
 
 def MaskOnImage(image, mask):
     xLen, yLen = image.shape
@@ -95,23 +142,25 @@ def NormalizeImage(image):
     amin = np.amin(image)
     return (image - amin) / ptp    
 
-def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
+def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=False):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for training: " + device.type)
     #return the model output threshold that maximizes accuracy. onlyMasks if true will calculate statistics
     #only for images that have a mask on the plane, and onlyBackground will do it for images without masks.
     print("Determining most accurate threshold...")
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
     model = model.to(device)     
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
+    dataFolder = os.path.join(path, dataPath)
     dataFiles = os.listdir(dataFolder)
 
     #also get the bools to find if masks are on image plane
     boolPath = 'Processed_Data/' + organ + " bools"
-    boolFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), boolPath)
+    boolFolder = os.path.join(path, boolPath)
     boolFiles = os.listdir(boolFolder)
 
     #shuffle the order (boolFiles is in same order)
@@ -213,14 +262,14 @@ def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
     maxAccuracyIndices = [i for i, j in enumerate(accuracies) if j == maxAccuracy]
     bestThreshold = thresholds[maxAccuracyIndices[0]] 
     #save this threshold
-    thresFile = open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + "_Thres.txt"),'w')
+    thresFile = open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_Thres.txt"),'w')
     thresFile.write(str(bestThreshold))
     thresFile.close()
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + "_Accuracy.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_Accuracy.txt"),'wb') as fp:
         pickle.dump(accuracies, fp)      
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + "_FalseNeg.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FalseNeg.txt"),'wb') as fp:
         pickle.dump(falseNeg, fp)   
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + "_FalsePos.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FalsePos.txt"),'wb') as fp:
         pickle.dump(falsePos, fp)            
     return bestThreshold
 
@@ -266,7 +315,6 @@ def Best_Threshold(organ, testSize=10e6, onlyMasks=False, onlyBackground=False):
     #Now need to make a numpy array as a list of points
 
 def PlotPatientContours(contours, existingContours):
-    #overload having existing patient contour to plot as well
     pointCloud = o3d.geometry.PointCloud()
     numPoints = 0
     points = []
@@ -308,24 +356,26 @@ def PlotPatientContours(contours, existingContours):
     pointCloud.points = o3d.utility.Vector3dVector(pointList[:,:3])
     o3d.visualization.draw_geometries([pointCloud])
 
-def FScore(organ, threshold):
+def FScore(organ, path, threshold):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for training: " + device.type)
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)
     model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
+    dataFolder = os.path.join(path, dataPath)
     dataFiles = sorted(os.listdir(dataFolder))
     d = 0
-    print('Calculating Statistics')
+    print('Calculating Fscore Statistics')
     TP = 0
     FP = 0
     FN = 0
 
     xLen,yLen = [0,0]
-    while d <  150:#len(dataFiles):
+    while d < len(dataFiles):
         numStack = min(3, len(dataFiles) - 1 - d) #loading 1400 images at a time (takes about 20GB RAM)
         p = 0
         concatList = []
@@ -350,46 +400,112 @@ def FScore(organ, threshold):
             x.requires_grad = True
             y.requires_grad = True
             x = torch.reshape(x, (1,1,xLen,yLen)).float()
-            y = torch.reshape(y, (1,1,xLen,yLen)).float()
+            y = y.cpu().detach().numpy()
+            y =np.reshape(y, (xLen, yLen))
             
             predictionRaw = (model(x)).cpu().detach().numpy()
+            predictionRaw = np.reshape(predictionRaw, (xLen, yLen))
             prediction = PostProcessing.Process(predictionRaw, threshold)
             for x_idx in range(xLen):
                 for y_idx in range(yLen):
-                    if prediction[0,0,x_idx,y_idx] == 1:
-                        if y[0,0,x_idx,y_idx] == 1:
+                    if prediction[x_idx,y_idx] == 1:
+                        if y[x_idx,y_idx] == 1:
                             TP += 1
                         else:
                             FP += 1
-                    elif y[0,0,x_idx,y_idx] == 1:     
-                        FN += 1  
-            print("Finished a patient")            
-        print("Finished " + str(d) + "patients...")                     
+                    elif y[x_idx,y_idx] == 1:     
+                        FN += 1           
+        print("Finished " + str(d) + " out of " + str(len(dataFiles)) + " contours...")                     
     totalPoints = d * xLen * yLen                    
     recall = TP / (TP + FN)
     precision = TP / (TP + FP)
     F_Score = 2 / (recall**(-1) + precision ** (-1))
     accuracy = (totalPoints - FP - FN) / totalPoints
-
-    #create a list of the hyperarameters of the model and the F score data
-    F_ScoreHyperparameters= []
-
-    #load the hyperparamaters of the model
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
-        F_ScoreHyperparameters = pickle.load(fp)
-
-    F_ScoreHyperparameters.append(["F Score", F_score])
-    F_ScoreHyperparameters.append(["Recall", recall])
-    F_ScoreHyperparameters.append(["Precision", precision])
-    F_ScoreHyperparameters.append(["Accuracy", accuracy])
-
-    #save the hyperparamters and F score data for the model 
-    with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Evaluation Data\EvaluationData_Model_" + organ.replace(" ", "") + ".txt"), "w") as fp:
-        for data in F_ScoreHyperparameters:
-            for element in data:
-                fp.write(str(element)+ " ")
-            fp.write('\n')
   
     return F_Score, recall, precision, accuracy
 
+def HaussdorffDistance(organ, path, threshold):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
+
+    dataPath = 'Processed_Data/' + organ + "_Val/"
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = sorted(os.listdir(dataFolder))
+
+    patientList = []
+    HaussdorffDistanceList = []
+    patientCount = 0
+
+    #want to use the patients in the validation set so get the patient names
+    for file in dataFiles:
+        if str(file).split("_")[1] not in patientList:
+            patientList.append(str(file).split("_")[1])
+
+    print("Calculating Haussdorf Distance")
+
+    for patientName in patientList: 
+        predictedContourList, existingContourList = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)
         
+        predictedContourArray = np.array(predictedContourList)
+        existingContourArray = np.array(existingContourList)
+
+        #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+        predictedContourArray = predictedContourArray.reshape(int(predictedContourArray.shape[0]/3), 3)
+        existingContourArray = existingContourArray.reshape(int(existingContourArray.shape[0]/3), 3)
+
+        #get the maximum Hausdorff distance and add to the list 
+        maxHaussdorffDistance = max(directed_hausdorff(predictedContourArray, existingContourArray)[0], directed_hausdorff(existingContourArray, predictedContourArray)[0])
+        HaussdorffDistanceList.append(maxHaussdorffDistance)
+
+        patientCount += 1
+
+        print("Finished " + str(patientCount) + " out of " + str(len(patientList)) + " patients")
+
+    #return the 95th percentile Haussdorff distance
+    return np.percentile(np.array(HaussdorffDistanceList), 95)
+
+
+def GetEvalData(organ, path, threshold):
+    #makes a text file containing the hyperparamters of the model, the Fscore data, and the 95th percentile Haussdorff distance
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
+
+    F_Score, recall, precision, accuracy = FScore(organ, path, threshold)
+    haussdorffDistance = HaussdorffDistance(organ, path, threshold)
+    haussdorffDistance = float(haussdorffDistance)
+
+    #create a list of the hyperarameters of the model and the evaluation data
+    evalData= []
+
+    #load the hyperparamaters of the model
+    with open(os.path.join(path, "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
+        evalData = pickle.load(fp)
+
+    evalData.append(["F Score", F_Score])
+    evalData.append(["Recall", recall])
+    evalData.append(["Precision", precision])
+    evalData.append(["Accuracy", accuracy])
+    evalData.append(["Threshold", threshold])
+    evalData.append(["95th Percentile Haussdorff Distance", haussdorffDistance])
+
+    #save the hyperparamters and F score data for the model 
+    with open(os.path.join(path, "Evaluation Data\EvaluationData_Model_" + organ.replace(" ", "") + ".txt"), "w") as fp:
+        for data in evalData:
+            for element in data:
+                fp.write(str(element)+ " ")
+            fp.write('\n')
+
+    return F_Score, recall, precision, accuracy, haussdorffDistance
+
+
+
+
+
+
+
+
+    
+
+  
+

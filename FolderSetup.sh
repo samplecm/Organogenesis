@@ -1,3 +1,4 @@
+#!/bin/bash
 #Create all the necessary folders for the program to work correctly
 pip install numpy
 pip install Shapely
@@ -44,6 +45,9 @@ if [ ! -d "Processed_Data" ]; then
   mkdir "Processed_Data"
 fi
 cd "Processed_Data"
+if [ ! -d "Sorted Contour Lists"]; then
+  mkdir "Sorted Contour Lists"]
+fi
 if [ ! -d "Body" ]; then
   mkdir "Body"
 fi
