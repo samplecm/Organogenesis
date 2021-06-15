@@ -96,30 +96,27 @@ def GetMasks(organ, patientName, threshold):
     patientImages.sort()    
 
     predictions = [] #First put 2d masks into predictions list and then at the end stack into a 3d array
+    originalMasks = []
     for image in patientImages:
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
         x = torch.from_numpy(data[0, :, :])
-        y = torch.from_numpy(data[1:2, :,:])
+        y = data[1,:,:]
         x = x.to(device)
-        y = y.to(device)
         xLen, yLen = x.shape
         #need to reshape 
         x = torch.reshape(x, (1,1,xLen,yLen)).float()
-        y = torch.reshape(y, (1,1,xLen,yLen)).float()   
         predictionRaw = (model(x)).cpu().detach().numpy()
         #now post-process the image
         x = x.cpu()
-        y = y.cpu()
         x = x.numpy()
-        y = y.numpy()
         prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
         predictions.append(prediction)
+        originalMasks.append(y)
     #Stack into 3d array    
-    predictionsArray = predictions[0]    
-    #for i in list(range(1,len(predictions))):
     predictionsArray = np.stack(predictions, axis=0)
-    return predictionsArray    
+    originalsArray = np.stack(originalMasks, axis=0)
+    return predictionsArray, originalsArray  
 
         
 
