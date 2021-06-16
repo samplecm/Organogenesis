@@ -20,6 +20,7 @@ import Test
 from Dataset import CTDataset
 import albumentations as A 
 import subprocess
+import torchtest as tt
 
 
 def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
@@ -94,7 +95,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
     #Now define or load the model and optimizer: 
     epochLossHistory = []
     trainLossHistory = []
-    UNetModel = Model.UNet()
+    UNetModel = Model.MultiResUnet(1)
     if loadModel == True:
         UNetModel.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))  
         try: #try to load lists which are keeping track of the loss over time
@@ -152,6 +153,18 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
         #Save the model:
         torch.save(UNetModel.state_dict(), os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")) 
         
+        #for param_tensor in UNetModel.state_dict():
+        #    print(param_tensor, "\t", UNetModel.state_dict()[param_tensor].size())
+            #if param_tensor == "multiresblock9.conv2d_bn_5x5.conv1.bias":
+            #    print(UNetModel.state_dict()[0])
+
+        #print(UNetModel.state_dict()["multiresblock1.conv2d_bn_1x1.conv1.weight"])
+
+        #dictionary = UNetModel.state_dict()
+
+        #for key in dictionary:
+        #    print(key)
+
         #make a list of the hyperparameters and their labels 
         hyperparameters = []
 
@@ -226,6 +239,33 @@ def Validate(organ, model):
 
     return sum(lossHistory) / len(lossHistory)  
 
- 
-          
+def TrainTesting():
+
+    model = Model.MultiResUnet(1)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    organ = "Spinal Cord" 
+    dataPath = 'Processed_Data/' + organ + "/"
+    dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath)
+    dataFiles = sorted(os.listdir(dataFolder))
+
+    train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
+
+        #creates the training dataloader 
+    train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)
+
+    for i, (image, mask) in enumerate(train_loader): 
+                
+        image.requires_grad=True #make sure they have a gradient for training
+        mask.requires_grad=True
+        batch = [image, mask]
+
+        try:
+            tt.assert_vars_change(
+            model=model, 
+            loss_fn= nn.BCEWithLogitsLoss(), 
+            optim=torch.optim.Adam(model.parameters()),
+            batch=batch, device = device)
+        except Exception as e:
+            print("Exception"+ str(e))
+            pass
           

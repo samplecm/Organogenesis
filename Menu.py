@@ -90,7 +90,8 @@ def main():
         # array, y = Test.GetMasks(OARs[chosenOAR], "HN1004", threshold=0.1)
         # print(array.shape)
         # print(y.shape)
-        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
+        #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
+        Train.TrainTesting()
 
 
    

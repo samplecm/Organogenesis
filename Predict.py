@@ -22,7 +22,7 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
         path = pathlib.Path(__file__).parent.absolute() 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for predicting: " + device.type)
-    model = Model.UNet()
+    model = Model.MultiResUnet(1)
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
     model.eval()
