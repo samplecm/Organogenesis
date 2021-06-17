@@ -73,14 +73,8 @@ def main():
         except: pass   
 
     if (task == 1):
-<<<<<<< HEAD
-        Train.Train(OARs[chosenOAR], 7, 1e-3, path="/media/calebsample/Data/temp", processData=True, loadModel=False, preSorted=False)
-        Test.Best_Threshold(OARs[chosenOAR],400)
-=======
         Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=False, loadModel=False, preSorted=True)
         Test.BestThreshold(OARs[chosenOAR],400)
->>>>>>> 4b071f93e9d5eaa11493791bf278e98c2064cbe2
-
         Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
         contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.72, withReal=True, tryLoad=False, plot=False) 
