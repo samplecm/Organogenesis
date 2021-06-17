@@ -203,7 +203,7 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
             #Now need to add the contour polygon mask to this image, if one exists on the current layer
             #loop over contours to check if z-value matches current CT.
             for contour in contourIndices:
-                if int(contour[0][2]*100) == int(CT[1]*100):    #if the contour is on the current slice (match to 2 decimals)
+                if int(round(contour[0][2], 2)*100) == int(round(CT[1], 2)*100):   #if the contour is on the current slice (match to 2 decimals)
                     contourOnPlane[idx] = 1
                     contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
                     backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
