@@ -403,11 +403,7 @@ def GetDICOMContours(patientFileName, organ, path):
                         pointListy = np.array([x,y,z])   
                     numContourPoints+=1       
                 contours[-1] = tempContour            
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> 4b071f93e9d5eaa11493791bf278e98c2064cbe2
     with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName  + "_ExistingContours.txt")), "wb") as fp:
         pickle.dump(contours, fp)  
     return contours
