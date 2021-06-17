@@ -1,6 +1,7 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
 import Model
+import Predict
 import torch
 import torch.nn as nn
 import pickle
@@ -13,6 +14,7 @@ import open3d as o3d
 import plotly.graph_objects as graph_objects
 from mpl_toolkits.mplot3d import Axes3D 
 from matplotlib import cm
+from scipy.spatial.distance import directed_hausdorff
 
 
 def TestPlot(organ, path, threshold):
@@ -367,13 +369,13 @@ def FScore(organ, path, threshold):
     dataFolder = os.path.join(path, dataPath)
     dataFiles = sorted(os.listdir(dataFolder))
     d = 0
-    print('Calculating Statistics')
+    print('Calculating Fscore Statistics')
     TP = 0
     FP = 0
     FN = 0
 
     xLen,yLen = [0,0]
-    while d <  150:#len(dataFiles):
+    while d < len(dataFiles):
         numStack = min(3, len(dataFiles) - 1 - d) #loading 1400 images at a time (takes about 20GB RAM)
         p = 0
         concatList = []
@@ -412,34 +414,98 @@ def FScore(organ, path, threshold):
                         else:
                             FP += 1
                     elif y[x_idx,y_idx] == 1:     
-                        FN += 1  
-            print("Finished a patient")            
-        print("Finished " + str(d) + "patients...")                     
+                        FN += 1           
+        print("Finished " + str(d) + " out of " + str(len(dataFiles)) + " contours...")                     
     totalPoints = d * xLen * yLen                    
     recall = TP / (TP + FN)
     precision = TP / (TP + FP)
     F_Score = 2 / (recall**(-1) + precision ** (-1))
     accuracy = (totalPoints - FP - FN) / totalPoints
-
-    #create a list of the hyperarameters of the model and the F score data
-    F_ScoreHyperparameters= []
-
-    #load the hyperparamaters of the model
-    with open(os.path.join(path, "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
-        F_ScoreHyperparameters = pickle.load(fp)
-
-    F_ScoreHyperparameters.append(["F Score", F_score])
-    F_ScoreHyperparameters.append(["Recall", recall])
-    F_ScoreHyperparameters.append(["Precision", precision])
-    F_ScoreHyperparameters.append(["Accuracy", accuracy])
-
-    #save the hyperparamters and F score data for the model 
-    with open(os.path.join(path, "Evaluation Data\EvaluationData_Model_" + organ.replace(" ", "") + ".txt"), "w") as fp:
-        for data in F_ScoreHyperparameters:
-            for element in data:
-                fp.write(str(element)+ " ")
-            fp.write('\n')
   
     return F_Score, recall, precision, accuracy
 
+def HaussdorffDistance(organ, path, threshold):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
+
+    dataPath = 'Processed_Data/' + organ + "_Val/"
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = sorted(os.listdir(dataFolder))
+
+    patientList = []
+    HaussdorffDistanceList = []
+    patientCount = 0
+
+    #want to use the patients in the validation set so get the patient names
+    for file in dataFiles:
+        if str(file).split("_")[1] not in patientList:
+            patientList.append(str(file).split("_")[1])
+
+    print("Calculating Haussdorf Distance")
+
+    for patientName in patientList: 
+        predictedContourList, existingContourList = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)
         
+        predictedContourArray = np.array(predictedContourList)
+        existingContourArray = np.array(existingContourList)
+
+        #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+        predictedContourArray = predictedContourArray.reshape(int(predictedContourArray.shape[0]/3), 3)
+        existingContourArray = existingContourArray.reshape(int(existingContourArray.shape[0]/3), 3)
+
+        #get the maximum Hausdorff distance and add to the list 
+        maxHaussdorffDistance = max(directed_hausdorff(predictedContourArray, existingContourArray)[0], directed_hausdorff(existingContourArray, predictedContourArray)[0])
+        HaussdorffDistanceList.append(maxHaussdorffDistance)
+
+        patientCount += 1
+
+        print("Finished " + str(patientCount) + " out of " + str(len(patientList)) + " patients")
+
+    #return the 95th percentile Haussdorff distance
+    return np.percentile(np.array(HaussdorffDistanceList), 95)
+
+
+def GetEvalData(organ, path, threshold):
+    #makes a text file containing the hyperparamters of the model, the Fscore data, and the 95th percentile Haussdorff distance
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
+
+    F_Score, recall, precision, accuracy = FScore(organ, path, threshold)
+    haussdorffDistance = HaussdorffDistance(organ, path, threshold)
+    haussdorffDistance = float(haussdorffDistance)
+
+    #create a list of the hyperarameters of the model and the evaluation data
+    evalData= []
+
+    #load the hyperparamaters of the model
+    with open(os.path.join(path, "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
+        evalData = pickle.load(fp)
+
+    evalData.append(["F Score", F_Score])
+    evalData.append(["Recall", recall])
+    evalData.append(["Precision", precision])
+    evalData.append(["Accuracy", accuracy])
+    evalData.append(["Threshold", threshold])
+    evalData.append(["95th Percentile Haussdorff Distance", haussdorffDistance])
+
+    #save the hyperparamters and F score data for the model 
+    with open(os.path.join(path, "Evaluation Data\EvaluationData_Model_" + organ.replace(" ", "") + ".txt"), "w") as fp:
+        for data in evalData:
+            for element in data:
+                fp.write(str(element)+ " ")
+            fp.write('\n')
+
+    return F_Score, recall, precision, accuracy, haussdorffDistance
+
+
+
+
+
+
+
+
+    
+
+  
+
