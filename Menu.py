@@ -73,7 +73,7 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=True, loadModel=False, preSorted=True)
+        Train.Train(OARs[chosenOAR], 7, 1e-3, path="/media/calebsample/Data/temp", processData=True, loadModel=False, preSorted=False)
         Test.Best_Threshold(OARs[chosenOAR],400)
 
         Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
@@ -86,10 +86,11 @@ def main():
         F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2)    
         print([F_Score, recall, precision, accuracy])
     elif task == 5:
-        # array, y = Test.GetMasks(OARs[chosenOAR], "HN1004", threshold=0.1)
-        # print(array.shape)
-        # print(y.shape)
-        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
+        array, y = Test.GetMasks(OARs[chosenOAR], "HN1046", path="/media/calebsample/Data/temp", threshold=0.1)
+        import numpy as np
+        print(np.amax(y))
+        print(np.amax(array))
+        Test.TestPlot(OARs[chosenOAR], path="/media/calebsample/Data/temp", threshold=0.1) 
 
 
    

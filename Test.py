@@ -74,10 +74,10 @@ def TestPlot(organ, path, threshold):
         # axs[2,1].set_title("Predicted Background")
         plt.show()
         
-def GetMasks(organ, patientName, threshold):
+def GetMasks(organ, patientName, path, threshold):
     #Returns a 3d array of predicted masks for a given patient name. 
-
-    path = pathlib.Path(__file__).parent.absolute()    
+    if path == None:
+        path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Model.UNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    

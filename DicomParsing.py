@@ -203,7 +203,7 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
             #Now need to add the contour polygon mask to this image, if one exists on the current layer
             #loop over contours to check if z-value matches current CT.
             for contour in contourIndices:
-                if contour[0][2] == CT[1]:    #if the contour is on the current slice
+                if int(contour[0][2]*100) == int(CT[1]*100):    #if the contour is on the current slice (match to 2 decimals)
                     contourOnPlane[idx] = 1
                     contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
                     backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
@@ -404,7 +404,7 @@ def GetDICOMContours(patientFileName, organ, path):
                     numContourPoints+=1       
                 contours[-1] = tempContour            
 
-    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName  + "_predictedContours.txt")), "wb") as fp:
+    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName  + "_ExistingContours.txt")), "wb") as fp:
         pickle.dump(contours, fp)  
     return contours
                 
