@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import Model
 import Predict
+import DicomParsing
 import torch
 import torch.nn as nn
 import pickle
@@ -120,7 +121,33 @@ def GetMasks(organ, patientName, path, threshold):
     originalsArray = np.stack(originalMasks, axis=0)
     return predictionsArray, originalsArray  
 
-        
+def GetOriginalMasks(organ, patientName):
+    #returns a 3d array of the masks for a given patinet 
+    path = pathlib.Path(__file__).parent.absolute()    
+
+    dataPath = 'Processed_Data/' + organ #+ "_Val/" #Currently looking for patients in the test folder. 
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = os.listdir(dataFolder)
+    filesRange = list(range(len(dataFiles)))
+
+    patientImages = []
+    for d in filesRange: #First get the files for the patientName given
+        if patientName in dataFiles[d]:
+            patientImages.append(dataFiles[d])
+    patientImages.sort()    
+
+    originalMasks = []
+    for image in patientImages:
+        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
+        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
+        y = data[1,:,:]
+        originalMasks.append(y)
+
+    #Stack into 3d array    
+    originalsArray = np.stack(originalMasks, axis=0)
+
+    return originalsArray  
+
 
 def MaskOnImage(image, mask):
     xLen, yLen = image.shape
@@ -497,6 +524,235 @@ def GetEvalData(organ, path, threshold):
             fp.write('\n')
 
     return F_Score, recall, precision, accuracy, haussdorffDistance
+
+def HowManySlices(organ, path):
+    #finds how many slices contain a contour of the specified organ 
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
+
+    dataPath = 'Processed_Data/' + organ 
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = sorted(os.listdir(dataFolder))
+    patientList = []
+    noMaskList = []
+
+    for file in dataFiles:
+        if str(file).split("_")[1] not in patientList:
+            patientList.append(str(file).split("_")[1])
+    print(patientList)
+
+    for patientName in patientList: 
+        print(patientName)
+        masks= GetOriginalMasks(organ, patientName)
+        sliceCount = 0
+        alternateSliceCount = 0
+        print("Number of Slices:" + str(masks.shape[0]))
+        for i in range(masks.shape[0]):
+            if 1.0 in masks[i]:
+                sliceCount += 1
+        print("Number of slices with contours:" + str(sliceCount))
+
+        if sliceCount == 0:
+            noMaskList.append(patientName)
+
+    print(noMaskList)
+
+
+from scipy.spatial import ConvexHull  
+
+def ContourVolume(organ, path):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
+
+    dataPath = 'Processed_Data/' + organ 
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = sorted(os.listdir(dataFolder))
+    organVolume = []
+    patientList = []
+
+    for file in dataFiles:
+        if str(file).split("_")[1] not in patientList:
+            patientList.append(str(file).split("_")[1])
+    print(patientList)
+
+    for patientName in patientList:
+        print(patientName)
+        contourList = Predict.GetOriginalContours(organ, patientName, path)
+        print(len(contourList))
+        contourArray = np.array(contourList)
+        print(contourArray.shape)
+
+        #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+        contourArray = contourArray.reshape(int(contourArray.shape[0]/3), 3)
+        print(contourArray.shape)
+
+        from mpl_toolkits.mplot3d import Axes3D
+
+        maxX = np.amax(contourArray, 0)[0]
+        maxY = np.amax(contourArray, 0)[1]
+        maxZ = np.amax(contourArray, 0)[2]
+        minX = np.amin(contourArray, 0)[0]
+        minY = np.amin(contourArray, 0)[1]
+        minZ = np.amin(contourArray, 0)[2]
+
+        print(maxX, maxY, maxZ, minX, minY, minZ)
+
+        hull = ConvexHull(contourArray)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        for i in hull.simplices:
+                plt.plot(contourArray[i,0], contourArray[i,1], contourArray[i,2], 'r-')
+
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+
+        ax.set_xlim3d(minX,maxX)
+        ax.set_ylim3d(minY,maxY)
+        ax.set_zlim3d(minZ,maxZ)
+
+        plt.show()
+
+        #create convex hull
+        organVolume.append(hull.volume)
+        print(hull.volume)
+
+    print(max(organVolume))
+    print(min(organVolume))
+
+def ContourArea(organ, patientName, path):
+    #notes for fixing: the convex hull volume calc is very different, validate that the area is mostly correct somehow 
+    from scipy.spatial import ConvexHull, convex_hull_plot_2d
+    import matplotlib.pyplot as plt
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
+
+    dataPath = 'Processed_Data/' + organ 
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = sorted(os.listdir(dataFolder))
+    organVolume = []
+    patientList = []
+
+    contourList = Predict.GetOriginalContours(organ, patientName, path)
+    contourArray = np.array(contourList)
+    print(contourArray.shape)
+
+    #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+    contourArray = contourArray.reshape(int(contourArray.shape[0]/3), 3)
+    print(contourArray[0,1])
+
+    zValueList = []
+    areaList = []
+
+    #print(contourList)
+    
+
+    for i in range(2,len(contourList), 3):
+        if round(contourList[i], 2) not in zValueList:
+            zValueList.append(round(contourList[i], 2))
+
+    print(zValueList)
+
+    sliceThickness = DicomParsing.GetSliceThickness(patientName, path)
+    print(sliceThickness)
+    
+    for zValue in zValueList:
+        print(zValue)
+        pointsList = []
+        for i in range(contourArray.shape[0]):
+            if (zValue == contourArray[i,2]):
+                pointsList.append([contourArray[i,0], contourArray[i,1]])
+
+        points = np.array(pointsList)
+        hull = ConvexHull(points)
+
+        plt.plot(points[:,0], points[:,1], 'o')
+
+        for simplex in hull.simplices:
+            plt.plot(points[simplex, 0], points[simplex, 1], 'k-')
+
+        plt.show()
+
+        print(hull.area)
+
+        areaList.append(hull.area)
+        
+    print(areaList)
+    volume = 0
+
+    for area in areaList:
+        volume += area*sliceThickness
+        print(volume)
+
+    print(volume)
+
+def AreContoursContinuous(organ, patientName, path, threshold): 
+    #returns a list of the missing Z Values in a predicted contour 
+  
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    contourList = Predict.GetContours(organ, patientName, path, threshold, withReal = False, tryLoad = False, plot = False)[0]
+    contourArray = np.array(contourList)
+    print(contourArray.shape)
+
+    #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+    contourArray = contourArray.reshape(int(contourArray.shape[0]/3), 3)
+    print(contourArray[0,1])
+
+    zValueList = []
+    areaList = []
+
+    #print(contourList)
+    
+    for i in range(2,len(contourList), 3):
+        if round(contourList[i], 2) not in zValueList:
+            zValueList.append(round(contourList[i], 2))
+
+    print(zValueList)
+
+    sliceThickness = round(DicomParsing.GetSliceThickness(patientName, path), 2)
+    print(sliceThickness)
+
+    startZValue = min(zValueList)
+    stopZValue = max(zValueList)
+
+    expectedZValueList = []
+
+    i = startZValue 
+
+    while i <= stopZValue: 
+        expectedZValueList.append(i)
+        i += sliceThickness 
+
+    print(expectedZValueList)
+
+    missingZValues = []
+
+    if zValueList == expectedZValueList:
+        return missingZValues
+    else: 
+        for zValue in expectedZValueList:
+            if zValue not in zValueList:
+                missingZValues.append(zValue)
+        return missingZValues
+
+
+
+
+
+
+
+
+
+
+    
+
+
 
 
 

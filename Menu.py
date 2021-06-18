@@ -73,11 +73,11 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=False, loadModel=False, preSorted=True)
+        Train.Train(OARs[chosenOAR], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False)
         Test.BestThreshold(OARs[chosenOAR],400)
         Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
-        contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.72, withReal=True, tryLoad=False, plot=False) 
+        contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"HN1044", path=None, threshold = 0.72, withReal=True, tryLoad=False, plot=False) 
         #print(contoursList)
         #print(len(contoursList))
     elif task == 3:
@@ -86,13 +86,22 @@ def main():
         F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(OARs[chosenOAR], path = None, threshold=0.7) 
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
     elif task == 5:
-        array, y = Test.GetMasks(OARs[chosenOAR], "HN1046", path="/media/calebsample/Data/temp", threshold=0.1)
-        import numpy as np
-        print(np.amax(y))
-        print(np.amax(array))
-        Test.TestPlot(OARs[chosenOAR], path="/media/calebsample/Data/temp", threshold=0.1) 
+        # array, y = Test.GetMasks(OARs[chosenOAR], "HN1004", threshold=0.1)
+        # print(array.shape)
+        # print(y.shape)
+        #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
+        #Test.HowManySlices(OARs[chosenOAR], path = None)
+        #Test.ContourVolume(OARs[chosenOAR], path = None)
+        #originalsArray = Test.GetOriginalMasks(OARs[chosenOAR], patientName = "HN1004")
+        #print(originalsArray.shape)
+        #Test.ContourArea(OARs[chosenOAR], "HN1006",  path = None)
+        #sliceThickness = DicomParsing.GetSliceThickness(patientName = "P68", path = None)
+        #print(sliceThickness)
 
+        missingZValueList = Test.AreContoursContinuous(OARs[chosenOAR], "HN1088", path = None, threshold = 0.72)
+        print(missingZValueList)
 
+        
    
 
 if __name__ == "__main__":

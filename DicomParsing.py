@@ -591,6 +591,21 @@ def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickne
                 newContours[-1].append([x,y,z])
     return newContours        
 
+def GetSliceThickness(patientName, path):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    dataPath = 'Patient_Files/' + patientName
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = sorted(os.listdir(dataFolder))
+    for file in dataFiles: 
+        if "CT" in file:
+            patientCT = file 
+            break
+
+    sliceThickness = dcmread(os.path.join(dataFolder, patientCT)).get("SliceThickness")
+
+    return float(sliceThickness)
 
     return contours
 if __name__ == "__main__":

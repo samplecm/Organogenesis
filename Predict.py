@@ -143,7 +143,42 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
                         existingContoursList.append(z)
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
-    return contoursList, existingContoursList    
+    return contoursList, existingContoursList 
+
+def GetOriginalContours(organ, patientFileName, path):
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    existingContours = [] 
+    existingContoursList = []
+
+    try:
+        existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))  
+        for layer_idx in range(len(existingContours)):
+            if len(existingContours[layer_idx]) > 0:
+                for point_idx in range(len(existingContours[layer_idx])):
+                    x = existingContours[layer_idx][point_idx][0]
+                    y = existingContours[layer_idx][point_idx][1]
+                    z = existingContours[layer_idx][point_idx][2]     
+                    existingContoursList.append(x)
+                    existingContoursList.append(y)
+                    existingContoursList.append(z)
+    except: 
+        existingContours = DicomParsing.GetDICOMContours(patientFileName, organ, path)
+        for layer_idx in range(len(existingContours)):
+            if len(existingContours[layer_idx]) > 0:
+                for point_idx in range(len(existingContours[layer_idx])):
+                    x = existingContours[layer_idx][point_idx][0]
+                    y = existingContours[layer_idx][point_idx][1]
+                    z = existingContours[layer_idx][point_idx][2]
+                    existingContoursList.append(x)
+                    existingContoursList.append(y)
+                    existingContoursList.append(z)
+
+    return existingContoursList
+
+
 
 
 
