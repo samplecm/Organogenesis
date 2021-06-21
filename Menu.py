@@ -75,7 +75,6 @@ def main():
     if (task == 1):
         Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=False, loadModel=False, preSorted=True)
         Test.BestThreshold(OARs[chosenOAR],400)
-
         Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
         contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.72, withReal=True, tryLoad=False, plot=False) 
@@ -87,10 +86,11 @@ def main():
         F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(OARs[chosenOAR], path = None, threshold=0.7) 
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
     elif task == 5:
-        # array, y = Test.GetMasks(OARs[chosenOAR], "HN1004", threshold=0.1)
-        # print(array.shape)
-        # print(y.shape)
-        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
+        array, y = Test.GetMasks(OARs[chosenOAR], "HN1046", path="/media/calebsample/Data/temp", threshold=0.1)
+        import numpy as np
+        print(np.amax(y))
+        print(np.amax(array))
+        Test.TestPlot(OARs[chosenOAR], path="/media/calebsample/Data/temp", threshold=0.1) 
 
 
    

@@ -38,6 +38,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
             print("Data Processed")
         
     else: 
+        folderScriptPath = os.path.join(pathlib.Path(__file__).parent.absolute(), "FolderSetup.sh")
         filesFolder = path
         modelPath = os.path.join(path, "Models")
         dataFolder = os.path.join(path, dataPath)   
@@ -82,7 +83,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
                 DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
                 print("Data Processed")
         else:
-            shutil.copy('FolderSetup.sh', path)
+            shutil.copy(folderScriptPath, path)
             os.chdir(path)
             subprocess.call(['sh', './FolderSetup.sh'])                 
             DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images

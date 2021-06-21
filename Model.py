@@ -74,6 +74,8 @@ class UNet(nn.Module):
     def epochEnd(self, epoch, result):
         print("Epoch [{}], val_loss: {:.4f}".format(epoch, result['val_loss']))
 
+
+
 def DoubleConv(inC, outC):
     conv = nn.Sequential(
         nn.Conv2d(inC, outC, kernel_size = 3, padding=1),
