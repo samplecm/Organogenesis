@@ -27,7 +27,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
     #loadModel is true when you already have a model that you wish to continue training
     #First extract patient training data and process it for each, saving it into Processed_Data folder
 
-    
+    torch.cuda.empty_cache()
     dataPath = 'Processed_Data/' + organ + "/"
     if path==None: #if a path to data was not supplied, assume that patient data has been placed in the Patient_Files folder in the current directory. 
         patientsPath = 'Patient_Files/'

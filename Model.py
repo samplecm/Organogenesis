@@ -111,6 +111,9 @@ class MultiResBlock(nn.Module):
         self.batchNorm1 = nn.BatchNorm2d(self.numFilters1)
         self.batchNorm2 = nn.BatchNorm2d(self.numFilters2)
         self.batchNorm3 = nn.BatchNorm2d(self.numFilters3)
+        self.batchNormSkip = nn.BatchNorm2d(self.numFilters1+self.numFilters2+self.numFilters3)
+        self.batchNormCat = nn.BatchNorm2d(self.numFilters1 + self.numFilters2 + self.numFilters3)
+        self.batchNormFinal = nn.BatchNorm2d((self.numFilters1 + self.numFilters2 + self.numFilters3))
 
       
     def forward(self, image):
@@ -125,32 +128,41 @@ class MultiResBlock(nn.Module):
       conv3 = self.batchNorm3(conv3)
       conv3 = nn.ReLU(inplace=True)(conv3)
       skip = self.skipConv(image)
-      return torch.cat([conv1, conv2, conv3], 1) + skip
+      skip = self.batchNormSkip(skip)
+      skip = nn.ReLU(inplace=True)(skip)
+      cat = torch.cat([conv1, conv2, conv3], 1)
+      cat = self.batchNormCat(cat) 
+      final = cat + skip
+      final = nn.ReLU(inplace=True)(final)
+      final = self.batchNormFinal(final)
+      return final
+
+
       
 
 class MultiResUNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.alpha = 1.67
-        self.inSize2 = int(self.alpha*64/6) + int(self.alpha*64/3) + int(self.alpha*64/2)
-        self.inSize3 = int(self.alpha*128/6) + int(self.alpha*128/3) + int(self.alpha*128/2)
-        self.inSize4 = int(self.alpha*256/6) + int(self.alpha*256/3) + int(self.alpha*256/2)
-        self.inSize5 = int(self.alpha*512/6) + int(self.alpha*512/3) + int(self.alpha*512/2)
-        self.inSize6 = int(self.alpha*1024/6) + int(self.alpha*1024/3) + int(self.alpha*1024/2)
+        self.inSize2 = int(self.alpha*32/6) + int(self.alpha*32/3) + int(self.alpha*32/2)
+        self.inSize3 = int(self.alpha*64/6) + int(self.alpha*64/3) + int(self.alpha*64/2)
+        self.inSize4 = int(self.alpha*128/6) + int(self.alpha*128/3) + int(self.alpha*128/2)
+        self.inSize5 = int(self.alpha*256/6) + int(self.alpha*256/3) + int(self.alpha*256/2)
+        self.inSize6 = int(self.alpha*512/6) + int(self.alpha*512/3) + int(self.alpha*512/2)
         self.inSize7 = self.inSize5 * 2
         self.inSize8 = self.inSize4 * 2
         self.inSize9 = self.inSize3 * 2
         self.inSize10 = self.inSize2 * 2
 
-        self.multiRes1 = MultiResBlock(1,64, self.alpha)
-        self.multiRes2 = MultiResBlock(self.inSize2,128, self.alpha)
-        self.multiRes3 = MultiResBlock(self.inSize3, 256, self.alpha)
-        self.multiRes4 = MultiResBlock(self.inSize4, 512, self.alpha)
-        self.multiRes5 = MultiResBlock(self.inSize5,1024, self.alpha)
-        self.multiRes6 = MultiResBlock(self.inSize7,512, self.alpha)
-        self.multiRes7 = MultiResBlock(self.inSize8,256, self.alpha)
-        self.multiRes8 = MultiResBlock(self.inSize9,128, self.alpha)
-        self.multiRes9 = MultiResBlock(self.inSize10,64, self.alpha)
+        self.multiRes1 = MultiResBlock(1,32, self.alpha)
+        self.multiRes2 = MultiResBlock(self.inSize2,64, self.alpha)
+        self.multiRes3 = MultiResBlock(self.inSize3, 128, self.alpha)
+        self.multiRes4 = MultiResBlock(self.inSize4, 256, self.alpha)
+        self.multiRes5 = MultiResBlock(self.inSize5,512, self.alpha)
+        self.multiRes6 = MultiResBlock(self.inSize7,256, self.alpha)
+        self.multiRes7 = MultiResBlock(self.inSize8,128, self.alpha)
+        self.multiRes8 = MultiResBlock(self.inSize9,64, self.alpha)
+        self.multiRes9 = MultiResBlock(self.inSize10,32, self.alpha)
 
         self.maxPool_2x2 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.upTrans1 = nn.ConvTranspose2d(in_channels=self.inSize6, out_channels = self.inSize5, kernel_size = 2, stride = 2, padding=0)
@@ -199,9 +211,9 @@ class MultiResUNet(nn.Module):
         #Res path 4:
         xRes = self.resPath4_Conv3(x7)    
         xSkip = self.resPath4_Conv1(x7)
-        xRes = xRes + xSkip
-        xRes = self.resPath4_batchNorm(xRes)
+        xRes = xRes + xSkip       
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath4_batchNorm(xRes)
 
         x = self.multiRes6(torch.cat([x, xRes], 1))
 
@@ -211,14 +223,15 @@ class MultiResUNet(nn.Module):
         xRes = self.resPath3_Conv3(x5)    
         xSkip = self.resPath3_Conv1(x5)
         xRes = xRes + xSkip
-        xRes = self.resPath3_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath3_batchNorm(xRes)
 
         xRes = self.resPath3_Conv3(xRes)    
         xSkip = self.resPath3_Conv1(xRes)
         xRes = xRes + xSkip
-        xRes = self.resPath3_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath3_batchNorm(xRes)
+        
 
         x = self.multiRes7(torch.cat([x, xRes], 1))
 
@@ -227,20 +240,23 @@ class MultiResUNet(nn.Module):
         xRes = self.resPath2_Conv3(x3)    
         xSkip = self.resPath2_Conv1(x3)
         xRes = xRes + xSkip
-        xRes = self.resPath2_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath2_batchNorm(xRes)
+        
 
         xRes = self.resPath2_Conv3(xRes)    
         xSkip = self.resPath2_Conv1(xRes)
         xRes = xRes + xSkip
-        xRes = self.resPath2_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath2_batchNorm(xRes)
+        
 
         xRes = self.resPath2_Conv3(xRes)    
         xSkip = self.resPath2_Conv1(xRes)
         xRes = xRes + xSkip
-        xRes = self.resPath2_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath2_batchNorm(xRes)
+        
 
         x = self.multiRes8(torch.cat([x, xRes], 1))
 
@@ -249,26 +265,30 @@ class MultiResUNet(nn.Module):
         xRes = self.resPath1_Conv3(x1)    
         xSkip = self.resPath1_Conv1(x1)
         xRes = xRes + xSkip
-        xRes = self.resPath1_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath1_batchNorm(xRes)
+        
 
         xRes = self.resPath1_Conv3(xRes)    
         xSkip = self.resPath1_Conv1(xRes)
         xRes = xRes + xSkip
-        xRes = self.resPath1_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath1_batchNorm(xRes)
+        
 
         xRes = self.resPath1_Conv3(xRes)    
         xSkip = self.resPath1_Conv1(xRes)
         xRes = xRes + xSkip
-        xRes = self.resPath1_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath1_batchNorm(xRes)
+        
 
         xRes = self.resPath1_Conv3(xRes)    
         xSkip = self.resPath1_Conv1(xRes)
         xRes = xRes + xSkip
-        xRes = self.resPath1_batchNorm(xRes)
         xRes = nn.ReLU(inplace=True)(xRes)
+        xRes = self.resPath1_batchNorm(xRes)
+        
         del(xSkip)
         x = self.multiRes9(torch.cat([x, xRes], 1))
         x = self.out(x)    
