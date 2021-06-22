@@ -27,7 +27,7 @@ functionOps = [
     "Train",
     "GetContours",
     "BestThreshold",
-    "FScore",
+    "GetEvalData",
     "PlotMasks"
 ]
 
@@ -58,7 +58,7 @@ def main():
     chooseTask_string += "1. Train a UNet model for predicting " + str(OARs[chosenOAR])
     chooseTask_string += "\n2. Predict " + str(OARs[chosenOAR]) + " contours using an existing model"
     chooseTask_string += "\n3. Determine threshold accuracies for predictions of the " + str(OARs[chosenOAR])
-    chooseTask_string += "\n4. Determine F-score for validation set of the " + str(OARs[chosenOAR])
+    chooseTask_string += "\n4. Determine the evaulation data (F score and 95th percentile Haussdorf distance) for the validation set of the " + str(OARs[chosenOAR])
     chooseTask_string += "\n5. Plot predicted masks for the  " + str(OARs[chosenOAR])
     chooseTask_string += "\n6. Export model to ONNX" #Not worrying about this anymore for now
     chooseTask_string += "\n7. predict using ONNX model \n>>" #Not worrying about this anymore for now

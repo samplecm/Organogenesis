@@ -15,7 +15,6 @@ import Test
 def Process(prediction, threshold):
 
     prediction = sigmoid(prediction)
-    return prediction
     #prediction[0,1,:,:] = FilterBackground(prediction[0,1,:,:], threshold)
     prediction = FilterContour(prediction, threshold)
     
