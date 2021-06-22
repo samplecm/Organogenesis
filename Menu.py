@@ -81,7 +81,7 @@ def main():
         contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.15, withReal=True, tryLoad=False) 
         
     elif task == 3:
-        Test.Best_Threshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
+        Test.BestThreshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
         F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2)    
         print([F_Score, recall, precision, accuracy])
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument('-o', "--organ", help="Specify the organ that a model is to be trained to contour, or that a model is to be used for predicting/generating contours. \
         Please choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \n left-submandibular, \n right-submandibular, \n brain-stem, \n larynx/laryngopharynx", default=None, type=str)
     parser.add_argument('-f', "--function", help = "Specify the function which is desired to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
-        \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"FScore\": calculate the F score for the given organ's model, \
+        \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"GetEvalData\": calculate the F score and 95th percentile Haussdorff distance for the given organ's model, \
         \"PlotMasks\": Plot 2d CTs with both manually drawn and predicted masks for visual comparison", default=None, type=str)
     #Training parameters:    
     parser.add_argument("--lr", help="Specify the learning rate desired for model training.", default=None, type=float)
@@ -168,7 +168,7 @@ if __name__ == "__main__":
             while True: #get user input 
                 try:
                     functionSelection = input("\nPlease specify the function to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
-            \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"FScore\": calculate the F score for the given organ's model, \
+            \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"GetEvalData\": calculate the F score and 95th percentile Haussdorff distance for the given organ's model, \
             \"PlotMasks\": Plot 2d CTs with both manually drawn and predicted masks for visual comparison \n >")
                     for function in functionOps:
                         if (function == functionSelection):
@@ -250,7 +250,7 @@ if __name__ == "__main__":
             path = args.dataPath     
             Test.BestThreshold(organ, path, 500)
 
-        elif args.function == "FScore":
+        elif args.function == "GetEvalData":
             thres = args.thres
             if thres == None:
                 while True:
@@ -261,8 +261,8 @@ if __name__ == "__main__":
                         quit
                     except: pass     
             path = args.dataPath            
-            F_Score, recall, precision, accuracy = Test.FScore(organ, path, thres)    
-            print([F_Score, recall, precision, accuracy])
+            F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(organ, path = path, threshold=thres) 
+            print([F_Score, recall, precision, accuracy, haussdorffDistance])
 
         elif args.function == "PlotMasks":
             thres = args.thres
