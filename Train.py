@@ -22,7 +22,7 @@ import albumentations as A
 import subprocess
 
 
-def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
+def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType):
     #processData is required if you are training with new dicom images with a certain ROI for the first time. This saves the CT and contours as image slices for training
     #loadModel is true when you already have a model that you wish to continue training
     #First extract patient training data and process it for each, saving it into Processed_Data folder
@@ -38,7 +38,6 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
             print("Data Processed")
         
     else: 
-        folderScriptPath = os.path.join(pathlib.Path(__file__).parent.absolute(), "FolderSetup.sh")
         filesFolder = path
         modelPath = os.path.join(path, "Models")
         dataFolder = os.path.join(path, dataPath)   
@@ -83,7 +82,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
                 DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
                 print("Data Processed")
         else:
-            shutil.copy(folderScriptPath, path)
+            shutil.copy('FolderSetup.sh', path)
             os.chdir(path)
             subprocess.call(['sh', './FolderSetup.sh'])                 
             DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
@@ -95,17 +94,20 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
     #Now define or load the model and optimizer: 
     epochLossHistory = []
     trainLossHistory = []
-    UNetModel = Model.UNet()
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
     if loadModel == True:
-        UNetModel.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
         try: #try to load lists which are keeping track of the loss over time
             trainLossHistory = pickle.load(open(os.path.join(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/")), str(trainLossHistory)), 'rb'))  
             epochLossHistory = pickle.load(open(os.path.join(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/")), str(epochLossHistory)), 'rb'))  
         except:
             trainLossHistory = []
             epochLossHistory = []
-    UNetModel.to(device)  #put the model onto the GPU     
-    optimizer = torch.optim.Adam(UNetModel.parameters(), lr)
+    model.to(device)  #put the model onto the GPU     
+    optimizer = torch.optim.Adam(model.parameters(), lr)
 
     
     dataFiles = sorted(os.listdir(dataFolder))
@@ -120,7 +122,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
     #Criterion = F.binary_cross_entropy_with_logits()#nn.BCEWithLogitsLoss() I now just define this in the model
     
     for epoch in range(numEpochs):
-        UNetModel.train() #put model in training mode
+        model.train() #put model in training mode
 
         #creates the training dataset 
         #set transform = transform for data augmentation, None for no augmentation
@@ -137,7 +139,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
 
                 image = image.to(device)
                 mask = mask.to(device)
-                loss = UNetModel.trainingStep(image,mask) #compute the loss of training prediction
+                loss = model.trainingStep(image,mask) #compute the loss of training prediction
                 trainLossHistory.append(loss.item())
                 loss.backward() #backpropagate
                 optimizer.step()
@@ -151,8 +153,20 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
        
         #end of epoch: check validation loss and
         #Save the model:
-        torch.save(UNetModel.state_dict(), os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")) 
+        torch.save(model.state_dict(), os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")) 
         
+        #for param_tensor in UNetModel.state_dict():
+        #    print(param_tensor, "\t", UNetModel.state_dict()[param_tensor].size())
+            #if param_tensor == "multiresblock9.conv2d_bn_5x5.conv1.bias":
+            #    print(UNetModel.state_dict()[0])
+
+        #print(UNetModel.state_dict()["multiresblock1.conv2d_bn_1x1.conv1.weight"])
+
+        #dictionary = UNetModel.state_dict()
+
+        #for key in dictionary:
+        #    print(key)
+
         #make a list of the hyperparameters and their labels 
         hyperparameters = []
 
@@ -165,19 +179,20 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
         hyperparameters.append(["Data Augmentation", "Off"])
 
         #save the hyperparameters to a binary file to be used in Test.FScore()
-        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
+        #save the hyperparameters to a binary file to be used in Test.FScore()
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
             pickle.dump(hyperparameters, fp)
 
-        epochLoss = Validate(organ, UNetModel) #validation step
+        epochLoss = Validate(organ, model) #validation step
         epochLossHistory.append(epochLoss)
         print('Epoch # {},  Loss: {}'.format(epoch+1, epochLoss))            
                 #reshape to have batch dimension in front
        
        #save the losses
-        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + "trainLossHistory" + ".txt")), "wb") as fp:
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + modelType.lower() + "_" + "trainLossHistory" + ".txt")), "wb") as fp:
             pickle.dump(trainLossHistory, fp)         
-        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + "epochLossHistory" + ".txt")), "wb") as fp:
-            pickle.dump(sum(epochLossHistory)/len(epochLossHistory), fp) 
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + modelType.lower() + "_" + "epochLossHistory" + ".txt")), "wb") as fp:
+            pickle.dump(sum(epochLossHistory)/len(epochLossHistory), fp)  
             
         #check if the change in validation loss was < 0.001 for 4 epochs
         stopCount = 0   
@@ -194,6 +209,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted):
             os._exit(0)
 
 
+         
          
 
 def Validate(organ, model):
