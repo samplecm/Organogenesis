@@ -13,8 +13,6 @@ import cv2 as cv
 import DicomParsing
 import Test
 
-
-
 def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoad=True, plot=True):
  
     #with real loads pre=existing DICOM roi to compare the prediction with 
@@ -22,7 +20,7 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
         path = pathlib.Path(__file__).parent.absolute() 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for predicting: " + device.type)
-    model = Model.UNet()
+    model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
     model.eval()
@@ -110,11 +108,11 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
                     contoursList.append(y)
                     contoursList.append(z)
 
-
-
-
-        with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
+    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
             pickle.dump([contourImages, contours], fp)      
+
+    print("interpolate")
+    contoursList = PostProcessing.InterpolateSlices(contoursList, patientFileName, organ, path)
 
     existingContours = []
     

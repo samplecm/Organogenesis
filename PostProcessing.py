@@ -10,6 +10,8 @@ import pathlib
 import random
 import pickle
 import Test
+import DicomParsing
+from scipy.spatial import ConvexHull
 
 
 def Process(prediction, threshold):
@@ -315,8 +317,113 @@ def Infer_From_ONNX(organ, patient):
         # axs[2,1].imshow(prediction[0,1, :,:], cmap = "gray")
         # axs[2,1].set_title("Predicted Background")
         plt.show()
-        
 
 
+def InterpolateSlices(contourList, patientName, organ, path):
+    zValuesToFixList = UnreasonableArea(contourList, organ, path) + MissingSlices(contourList, patientName, path)
 
+    return contourList
 
+def UnreasonableArea(contourList, organ , path):
+     #retuns a list of the z values for CT slices with an unreasonable predicted contour area 
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    contourArray = np.array(contourList)
+
+    #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+    contourArray = contourArray.reshape(int(contourArray.shape[0]/3), 3)
+
+    #get the z values in the contour
+    zValueList = GetZValues(contourList)
+
+    #try to get the percent area stats if they have already been found 
+    try:     
+        percentAreaStats = pickle.load(open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area Stats.txt")),'rb'))
+    except: 
+        Test.PercentAreaStats(organ, path)
+        percentAreaStats = pickle.load(open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area Stats.txt")),'rb'))
+  
+    unreasonableArea = []
+
+    for j, zValue in enumerate(zValueList):
+        #create the list of contour points at the specified z value 
+        pointsList = []
+        for i in range(contourArray.shape[0]):
+            if (zValue == contourArray[i,2]):
+                if [contourArray[i,0], contourArray[i,1]] not in pointsList: 
+                    pointsList.append([contourArray[i,0], contourArray[i,1]])
+        #if there only two points, the area cannot not be found and is by default incorrect, add to the unreasonable area list
+        if len(pointsList) < 3:
+                unreasonableArea.append(zValue)
+
+        else: 
+            points = np.array(pointsList)
+
+            #try to create the hull. If there are too few points that are too close together, add to the unreasonable area list
+            try: 
+                hull = ConvexHull(points)
+            except:
+                unreasonableArea.append(zValue)
+
+            #find how many percent the z value is through the contour
+            percent = int(((j+1)/len(zValueList))*100)
+            area = hull.area
+
+            #if the area is above the max area or below the min area, add the z value to the unreasonable area list
+            for element in percentAreaStats:
+                if percent == element[0]:
+                    if area > element[2] or area < element[3]:
+                        unreasonableArea.append(zValue)
+                    break
+
+    return unreasonableArea
+
+def MissingSlices(contourList,patientName, path):
+    #returns a list of the z values for slices with missing contours 
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    contourArray = np.array(contourList)
+
+    #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+    contourArray = contourArray.reshape(int(contourArray.shape[0]/3), 3)
+
+    zValueList = GetZValues(contourList)
+
+    sliceThickness = round(DicomParsing.GetSliceThickness(patientName, path), 2)
+
+    startZValue = min(zValueList)
+    stopZValue = max(zValueList)
+
+    expectedZValueList = []
+
+    i = startZValue 
+
+    while i <= stopZValue: 
+        expectedZValueList.append(i)
+        i += sliceThickness 
+
+    missingZValues = []
+
+    if zValueList == expectedZValueList:
+        return missingZValues
+    else: 
+        for zValue in expectedZValueList:
+            if zValue not in zValueList:
+                missingZValues.append(zValue)
+        return missingZValues
+
+def GetZValues(contourList):
+    #takes a list of contour points and returns a sorted list of the z values in the contour
+    zValueList = []
+
+    for i in range(2,len(contourList), 3):
+        if round(contourList[i], 2) not in zValueList:
+            zValueList.append(round(contourList[i], 2))
+
+    zValueList = sorted(zValueList)
+
+    return zValueList
