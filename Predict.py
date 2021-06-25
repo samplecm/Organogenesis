@@ -20,8 +20,17 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
         path = pathlib.Path(__file__).parent.absolute() 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for predicting: " + device.type)
-    model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    model = Model.UNet()
+    #if the model is not UNet switch to MultiResUNet
+    try: 
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    except Exception as e: 
+        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
+            model = Model.MultiResUNet()
+            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        else: 
+            print(e)
+            os._exit(0)
     model = model.to(device)    
     model.eval()
     contoursList = [] #The 1d contours list to be returned

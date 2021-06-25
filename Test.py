@@ -24,7 +24,16 @@ def TestPlot(organ, path, threshold):
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    #if the model is not UNet switch to MultiResUNet
+    try: 
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    except Exception as e: 
+        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
+            model = Model.MultiResUNet()
+            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        else: 
+            print(e)
+            os._exit(0)    
     model = model.to(device)    
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
@@ -83,8 +92,17 @@ def GetPredictedMasks(organ, patientName, path, threshold):
     if path == None:
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model = Model.UNet()
+    #if the model is not UNet switch to MultiResUNet
+    try: 
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    except Exception as e: 
+        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
+            model = Model.MultiResUNet()
+            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        else: 
+            print(e)
+            os._exit(0)    
     model = model.to(device)    
     model.eval()
 
@@ -177,8 +195,17 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     #return the model output threshold that maximizes accuracy. onlyMasks if true will calculate statistics
     #only for images that have a mask on the plane, and onlyBackground will do it for images without masks.
     print("Determining most accurate threshold...")
-    model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))    
+    model = Model.UNet()
+    #if the model is not UNet switch to MultiResUNet
+    try: 
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    except Exception as e: 
+        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
+            model = Model.MultiResUNet()
+            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        else: 
+            print(e)
+            os._exit(0)   
     model = model.to(device)     
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
@@ -388,8 +415,17 @@ def FScore(organ, path, threshold):
         path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for training: " + device.type)
-    model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    model = Model.UNet()
+    #if the model is not UNet switch to MultiResUNet
+    try: 
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    except Exception as e: 
+        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
+            model = Model.MultiResUNet()
+            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        else: 
+            print(e)
+            os._exit(0)
     model = model.to(device)
     model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"

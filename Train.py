@@ -181,7 +181,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
         hyperparameters.append(["Data Augmentation", "Off"])
 
         #save the hyperparameters to a binary file to be used in Test.FScore()
-        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
             pickle.dump(hyperparameters, fp)
 
         epochLoss = Validate(organ, model) #validation step

@@ -255,7 +255,16 @@ def MaxGap(slices):
 
 def Export_To_ONNX(organ):
     model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")))      
+    #if the model is not UNet switch to MultiResUNet
+    try: 
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    except Exception as e: 
+        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
+            model = Model.MultiResUNet()
+            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        else: 
+            print(e)
+            os._exit(0)    
     model.eval()
 
     #Now need a dummy image to predict with to save the weights
