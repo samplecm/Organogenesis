@@ -81,16 +81,16 @@ def main():
         contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.15, withReal=True, tryLoad=False) 
         
     elif task == 3:
-        Test.Best_Threshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
+        Test.BestThreshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
-        F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2)    
+        F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2, path = None)    
         print([F_Score, recall, precision, accuracy])
     elif task == 5:
-        #array, y = Test.GetMasks(OARs[chosenOAR], "HN1046", path="/media/calebsample/Data/temp", threshold=0.1)
-        # import numpy as np
-        # print(np.amax(y))
-        # print(np.amax(array))
-        Test.TestPlot(OARs[chosenOAR], path="/media/calebsample/Data/temp", threshold=0.1) 
+        array, y = Test.GetMasks(OARs[chosenOAR], "P2", path=None, threshold=0.7)
+        import numpy as np
+        print(np.amax(y))
+        print(np.amax(array))
+        #Test.TestPlot(OARs[chosenOAR], path="/media/calebsample/Data/temp", threshold=0.1) 
 
 
    
