@@ -45,8 +45,8 @@ def TestPlot(organ, path, threshold):
         imagePath = dataFiles[d]
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
-        x = torch.from_numpy(data[0, :, :])
-        y = torch.from_numpy(data[1:2, :,:])
+        x = torch.from_numpy(data[0][0, :, :])
+        y = torch.from_numpy(data[0][1:2, :,:])
         x = x.to(device)
         y = y.to(device)
         xLen, yLen = x.shape
@@ -123,8 +123,8 @@ def GetPredictedMasks(organ, patientName, path, threshold):
     for image in patientImages:
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
-        x = torch.from_numpy(data[0, :, :])
-        y = data[1,:,:]
+        x = torch.from_numpy(data[0][0, :, :])
+        y = data[0][1,:,:]
         x = x.to(device)
         xLen, yLen = x.shape
         #need to reshape 
@@ -133,35 +133,11 @@ def GetPredictedMasks(organ, patientName, path, threshold):
         #now post-process the image
         x = x.cpu()
         x = x.numpy()
-        prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
-        predictions.append(prediction)
+        predic = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
+        predictions.append(predic)
+        originalMasks.append(y)
     #Stack into 3d array    
     predictionsArray = np.stack(predictions, axis=0)
-    return predictionsArray
-
-def GetOriginalMasks(organ, patientName):
-    #returns a 3d array of the masks for a given patinet 
-    path = pathlib.Path(__file__).parent.absolute()    
-
-    dataPath = 'Processed_Data/' + organ #+ "_Val/" #Currently looking for patients in the test folder. 
-    dataFolder = os.path.join(path, dataPath)
-    dataFiles = os.listdir(dataFolder)
-    filesRange = list(range(len(dataFiles)))
-
-    patientImages = []
-    for d in filesRange: #First get the files for the patientName given
-        if patientName in dataFiles[d]:
-            patientImages.append(dataFiles[d])
-    patientImages.sort()    
-
-    originalMasks = []
-    for image in patientImages:
-        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
-        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
-        y = data[1,:,:]
-        originalMasks.append(y)
-
-    #Stack into 3d array    
     originalsArray = np.stack(originalMasks, axis=0)
 
     return originalsArray  

@@ -251,9 +251,11 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
         testImagePath = "Processed_Data/" + organ + "_Test/TestData_" + patientFolders[p] 
         testContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
         combinedData = np.zeros((2,len(CTs),xLen,yLen))
+        slice_ZVals = [] #For storing the z value of CT slices
         for zSlice in range(len(CTs)):
             combinedData[0,zSlice,:,:] = CTs[zSlice][0]
             combinedData[1,zSlice,:,:] = contourImages[zSlice]
+            slice_ZVals.append(CTs[zSlice][1]) #Add z value for the slice
             #combinedData[2,zSlice,:,:] = backgroundImages[zSlice]
         
         #Now also get the contour for plotting
@@ -316,28 +318,28 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                 if preSorted == True: 
                     if patientFolders[p] not in validationPatientsList:
                         with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump(combinedData[:,zSlice,:,:], fp)         
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
                         with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
                             pickle.dump(contourOnPlane[zSlice], fp)
                     else: 
                         with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump(combinedData[:,zSlice,:,:], fp)         
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
                         with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump(contourOnPlane[zSlice], fp) 
                 else: 
                     if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
                         with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump(combinedData[:,zSlice,:,:], fp)         
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
                         with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
                             pickle.dump(contourOnPlane[zSlice], fp)          
                     else:
                         with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump(combinedData[:,zSlice,:,:], fp)         
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
                         with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump(contourOnPlane[zSlice], fp)     
             else:
                 with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump(combinedData[:,zSlice,:,:], fp)         
+                        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
                 with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump(contourOnPlane[zSlice], fp)  
 
@@ -377,7 +379,7 @@ def GetPredictionCTs(patientFileName, path):
         if resizedArray.max() > 2500:
             resizedArray = np.clip(resizedArray, -1000, 2700)
         resizedArray = NormalizeImage(resizedArray) 
-        CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness])
+        CTs.append(resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness)
     CTs.sort(key=lambda x:x[1][2]) #not necessarily in order, so sort according to z-slice.
 
     with open(os.path.join(path, str("Predictions_Patients/" + patientFileName  + "_Processed.txt")), "wb") as fp:
