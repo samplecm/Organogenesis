@@ -225,15 +225,17 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     accuracies = [] #make a list of average accuracies calculated using different thresholds
     falsePos = []
     falseNeg = []
-    thresholds = np.linspace(0.05,0.9,10)
+    fScores = []
+    thresholds = np.linspace(0.05,0.6,3)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
         d = 0
-        #get the accuracy for the current threshold value
+        #get the accuracy and F score for the current threshold value
         thresAccuracy = []
         thresFP = []
         thresFN = [] #false pos, neg
+        thresFScore = []
         testSize = min(testSize, len(filesRange))
         while d < testSize:
             numStack = min(200, len(filesRange) - 1 - d)
@@ -285,7 +287,14 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
                 thresPrediction = (prediction > thres)
                 imageAccuracy = np.sum(thresPrediction == y.numpy())
                 imageFP = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 1))
-                imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))         
+                imageTP = np.sum(np.logical_and(thresPrediction == y.numpy(), thresPrediction == 1))
+                imageTN = np.sum(np.logical_and(thresPrediction == y.numpy(), thresPrediction == 0)) 
+                imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))    
+                imageRecall = imageTP/(imageTP+imageFN)
+                imagePrecision = imageTP/(imageTP+imageFP)
+                if imageRecall != 0 and imagePrecision != 0:
+                    imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
+                    thresFScore.append(imageFScore)
                 imageAccuracy *= 100/float(prediction.size) 
                 imageFN *= 100 / float(prediction.size)
                 imageFP *= 100 / float(prediction.size)
@@ -294,10 +303,11 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
                 thresFN.append(imageFN) #false pos, neg
 
         accuracies.append(sum(thresAccuracy) / len(thresAccuracy))
+        fScores.append(sum(thresFScore)/len(thresFScore))
         falseNeg.append(sum(thresFN)/len(thresFN))
         falsePos.append(sum(thresFP)/len(thresFP))
     #Now need to determine what the best threshold to use is. Also plot the accuracy, FP, FN:
-    fig, axs = plt.subplots(nrows=3, ncols=1, figsize=(15, 15))
+    fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 10))
 
     axs[0].scatter(thresholds, accuracies)
     axs[0].plot(thresholds, accuracies)
@@ -308,13 +318,16 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     axs[2].scatter(thresholds, falseNeg)
     axs[2].plot(thresholds, falseNeg)
     axs[2].set_title("False Negatives vs Threshold")
+    axs[3].scatter(thresholds, fScores)
+    axs[3].plot(thresholds, fScores)
+    axs[3].set_title("F Score vs Threshold")
 
     plt.show()    
 
-    #Get maximimum accuracy 
-    maxAccuracy = max(accuracies) 
-    maxAccuracyIndices = [i for i, j in enumerate(accuracies) if j == maxAccuracy]
-    bestThreshold = thresholds[maxAccuracyIndices[0]] 
+    #Get maximimum F score
+    maxFScore = max(fScores) 
+    maxFScoreIndices = [i for i, j in enumerate(fScores) if j == maxFScore]
+    bestThreshold = thresholds[maxFScoreIndices[0]] 
     #save this threshold
     thresFile = open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_Thres.txt"),'w')
     thresFile.write(str(bestThreshold))
@@ -324,7 +337,9 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FalseNeg.txt"),'wb') as fp:
         pickle.dump(falseNeg, fp)   
     with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FalsePos.txt"),'wb') as fp:
-        pickle.dump(falsePos, fp)            
+        pickle.dump(falsePos, fp)         
+    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FScore.txt"),'wb') as fp:
+        pickle.dump(fScores, fp)    
     return bestThreshold
 
 
