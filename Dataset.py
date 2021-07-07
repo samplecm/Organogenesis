@@ -17,8 +17,8 @@ class CTDataset(Dataset):
     def __getitem__(self, index):
         dataPath = os.path.join(self.root_dir, self.dataFiles[index])
         data = pickle.load(open(dataPath, 'rb'))
-        image = data[0,:,:]
-        mask = data[1,:,:]
+        image = data[0][0,:,:]
+        mask = data[0][1,:,:]
 
         if self.transform: #performs data augmentation if we are using it 
             transformed = self.transform(image = image, mask = mask)
