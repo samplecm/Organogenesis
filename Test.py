@@ -199,7 +199,7 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     falsePos = []
     falseNeg = []
     fScores = []
-    thresholds = np.linspace(0.05,0.6,8)
+    thresholds = np.linspace(0.05,0.6,3)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
@@ -265,8 +265,9 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
                 imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))    
                 imageRecall = imageTP/(imageTP+imageFN)
                 imagePrecision = imageTP/(imageTP+imageFP)
-                imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
-                thresFScore.append(imageFScore)
+                if imageRecall != 0 and imagePrecision != 0:
+                    imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
+                    thresFScore.append(imageFScore)
                 imageAccuracy *= 100/float(prediction.size) 
                 imageFN *= 100 / float(prediction.size)
                 imageFP *= 100 / float(prediction.size)
