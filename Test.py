@@ -43,8 +43,8 @@ def TestPlot(organ, path, threshold):
         imagePath = dataFiles[d]
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
-        x = torch.from_numpy(data[0, :, :])
-        y = torch.from_numpy(data[1:2, :,:])
+        x = torch.from_numpy(data[0][0, :, :])
+        y = torch.from_numpy(data[0][1:2, :,:])
         x = x.to(device)
         y = y.to(device)
         xLen, yLen = x.shape
@@ -120,8 +120,8 @@ def GetMasks(organ, patientName, path, threshold):
     for image in patientImages:
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
-        x = torch.from_numpy(data[0, :, :])
-        y = data[1,:,:]
+        x = torch.from_numpy(data[0][0, :, :])
+        y = data[0][1,:,:]
         x = x.to(device)
         xLen, yLen = x.shape
         #need to reshape 
@@ -130,8 +130,8 @@ def GetMasks(organ, patientName, path, threshold):
         #now post-process the image
         x = x.cpu()
         x = x.numpy()
-        prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
-        predictions.append(prediction)
+        predic = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
+        predictions.append(predic)
         originalMasks.append(y)
     #Stack into 3d array    
     predictionsArray = np.stack(predictions, axis=0)
