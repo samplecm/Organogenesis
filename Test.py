@@ -204,7 +204,7 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
         d = 0
-        #get the accuracy for the current threshold value
+        #get the accuracy and F score for the current threshold value
         thresAccuracy = []
         thresFP = []
         thresFN = [] #false pos, neg
@@ -265,7 +265,7 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
                 imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))    
                 imageRecall = imageTP/(imageTP+imageFN)
                 imagePrecision = imageTP/(imageTP+imageFP)
-                imageFScore = 2/(imageRecall**(-1) + imagePrecision**(-1))
+                imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
                 thresFScore.append(imageFScore)
                 imageAccuracy *= 100/float(prediction.size) 
                 imageFN *= 100 / float(prediction.size)
@@ -279,7 +279,7 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
         falseNeg.append(sum(thresFN)/len(thresFN))
         falsePos.append(sum(thresFP)/len(thresFP))
     #Now need to determine what the best threshold to use is. Also plot the accuracy, FP, FN:
-    fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(15, 15))
+    fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 10))
 
     axs[0].scatter(thresholds, accuracies)
     axs[0].plot(thresholds, accuracies)
