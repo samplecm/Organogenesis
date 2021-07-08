@@ -73,24 +73,29 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
-        Test.Best_Threshold(OARs[chosenOAR],400)
+        Train.Train(OARs[chosenOAR], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
+        #Test.Best_Threshold(OARs[chosenOAR],400)
 
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
-        contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P49", path=None, threshold = 0.5, withReal=False, tryLoad=False) 
+        contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P38", path=None, threshold = 0.7, withReal=True, tryLoad=False) 
         
     elif task == 3:
         Test.BestThreshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
-        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(OARs[chosenOAR], path = None, threshold=0.7) 
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(OARs[chosenOAR], path = None, threshold=0.2) 
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
     elif task == 5:
-        # array, y = Test.GetMasks(OARs[chosenOAR], "HN1004", path=None, threshold=0.7)
-        # import numpy as np
-        # print(np.amax(y))
-        # print(np.amax(array))
-        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
+        #array = Test.GetPredictedMasks(OARs[chosenOAR], "P2", path=None, threshold=0.7)
+        #import numpy as np
+        #print(np.amax(array))
+        #Test.TestPlot(OARs[chosenOAR], path="/media/calebsample/Data/temp", threshold=0.1) 
+        #Test.PercentStats(OARs[chosenOAR], path = None)
+        #Test.HaussdorffDistance("body", path = None, threshold = 0.7)
+        #Test.GetMasks(OARs[chosenOAR], "P38", path = None, threshold = 0.7)
+        #print(DicomParsing.GetCTInfo("P85", path = None))
+        Test.AdaptedFScore(OARs[chosenOAR], path = None, threshold = 0.7)
+        
 
 
    

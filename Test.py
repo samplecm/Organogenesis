@@ -17,6 +17,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from scipy.spatial.distance import directed_hausdorff
 from scipy.spatial import ConvexHull
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
+from PIL import Image, ImageDraw
 
 
 def TestPlot(organ, path, threshold):
@@ -388,7 +391,7 @@ def PlotPatientContours(contours, existingContours):
     for layer_idx in range(len(existingContours)):
         if len(existingContours[layer_idx]) > 0:
             for point_idx in range(len(existingContours[layer_idx])):
-                x = existingContours[layer_idx][point_idx][0]-25
+                x = existingContours[layer_idx][point_idx][0]-200
                 y = existingContours[layer_idx][point_idx][1]
                 z = existingContours[layer_idx][point_idx][2]
                 
@@ -429,8 +432,8 @@ def FScore(organ, path, threshold):
     FN = 0
 
     xLen,yLen = [0,0]
-    while d < len(dataFiles):
-        numStack = min(3, len(dataFiles) - 1 - d) #loading 1400 images at a time (takes about 20GB RAM)
+    while d < 1000: #len(dataFiles)
+        numStack = min(3, 1000 - 1 - d) #loading 1400 images at a time (takes about 20GB RAM)
         p = 0
         concatList = []
         while p < numStack:
@@ -469,7 +472,7 @@ def FScore(organ, path, threshold):
                             FP += 1
                     elif y[x_idx,y_idx] == 1:     
                         FN += 1           
-        print("Finished " + str(d) + " out of " + str(len(dataFiles)) + " contours...")                     
+        print("Finished " + str(d) + " out of " + str(1000) + " contours...")                     
     totalPoints = d * xLen * yLen                    
     recall = TP / (TP + FN)
     precision = TP / (TP + FP)
@@ -477,6 +480,79 @@ def FScore(organ, path, threshold):
     accuracy = (totalPoints - FP - FN) / totalPoints
   
     return F_Score, recall, precision, accuracy
+
+def AdaptedFScore(organ, path, threshold):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    dataPath = 'Processed_Data/' + organ + "_Val/"
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = sorted(os.listdir(dataFolder))
+
+    patientList = []
+    patientCount = 0
+
+    #want to use the patients in the validation set so get the patient names
+    for file in dataFiles:
+        if str(file).split("_")[1] not in patientList:
+            patientList.append(str(file).split("_")[1])
+
+    print("Calculating F Score")
+
+    for patientName in patientList: 
+        patientFiles = []
+        print(patientName)
+        for file in dataFiles: 
+            if patientName in file:
+                patientFiles.append(file)
+        print(patientFiles)
+
+        #contours = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)[2]
+
+        for patientFile in patientFiles:
+           with open(os.path.join(dataFolder, patientFile), "rb") as fp:
+                patientData = pickle.load(fp)
+           existingMask = patientData[0][1,:,:]
+           zValue = patientData[1]
+
+           print("yep")
+
+
+
+def ContoursToMasks(contours, patientName, path):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
+
+    #need to get ipp and pixelSpacing
+    CTInfo = DicomParsing.GetCTInfo(patientName, path)
+    ipp = CTInfo[2]
+    pixelSpacing = CTInfo[3]
+
+    contourIndices = DicomParsing.DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
+
+    print("yep")
+
+
+    
+    contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
+    backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
+    #combinedImage = Image.fromarray(CT[0])
+    contourPoints = []
+    #now add all contour points to contourPoints as Point objects
+    for pointList in contour:
+        contourPoints.append((int(pointList[0]), int(pointList[1])))
+    contourPolygon = Polygon(contourPoints)
+    ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
+    #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
+    #ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
+    contourImage = np.array(contourImage)
+    contourImages.append(contourImage)
+    # combinedImage = np.array(combinedImage)
+    # combinedImages.append(combinedImage)
+    backgroundImage = np.array(backgroundImage)
+    backgroundImages.append(backgroundImage)
+    contourOnImage = True
+
 
 def HaussdorffDistance(organ, path, threshold):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
@@ -552,7 +628,7 @@ def GetEvalData(organ, path, threshold):
 
     return F_Score, recall, precision, accuracy, haussdorffDistance
 
-def PercentAreaStats(organ, path):
+def PercentStats(organ, path):
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
@@ -561,6 +637,7 @@ def PercentAreaStats(organ, path):
     patientList = pickle.load(open(os.path.join(path, str("Processed_Data/Sorted Contour Lists/" + organ + " Good Contours.txt")), 'rb')) 
 
     percentAreaList = []
+    percentNumPointsList = []
 
     for patientCount, patientName in enumerate(patientList): 
         #get the existing contours for each patient
@@ -580,6 +657,7 @@ def PercentAreaStats(organ, path):
                 if (zValue == contourArray[i,2]):
                     pointsList.append([contourArray[i,0], contourArray[i,1]])
             points = np.array(pointsList)
+            numPoints = len(pointsList)
 
             #create the hull
             hull = ConvexHull(points)
@@ -589,26 +667,99 @@ def PercentAreaStats(organ, path):
 
             #append the percent through the contour and the area of the contour to the list 
             percentAreaList.append([percent, hull.area])
+            percentNumPointsList.append([percent, numPoints])
 
         print("Finished " + str(patientCount + 1) + " out of " + str(len(patientList)) + " patients")
 
     with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area List.txt")), "wb") as fp:
         pickle.dump(percentAreaList, fp)  
      
-    percentStats = []
+    with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points List.txt")), "wb") as fp:
+        pickle.dump(percentNumPointsList, fp)  
+
+    percentAreaStats = []
+    percentNumPointsStats = []
 
     for percentIndex in range(101): 
         areaList = []
+        numPointsList = []
         for percentArea in percentAreaList:
             if percentArea[0] == percentIndex:
                 areaList.append(percentArea[1])
-        averageArea = sum(areaList)/(len(areaList))
-        maxArea = max(areaList)
-        minArea = min(areaList)
-        percentStats.append([percentIndex, averageArea, maxArea, minArea])
+        if len(areaList) > 0:
+            averageArea = sum(areaList)/(len(areaList))
+            maxArea = max(areaList)
+            minArea = min(areaList)
+            percentAreaStats.append([percentIndex, averageArea, maxArea, minArea])
+
+        for percentNumPoints in percentNumPointsList:
+            if percentNumPoints[0] == percentIndex: 
+                numPointsList.append(percentNumPoints[1])
+        if len(numPointsList) > 0:
+            averageNumPoints = sum(numPointsList)/len(numPointsList)
+            minNumPoints = min(numPointsList)
+            maxNumPoints = max(numPointsList)
+            percentNumPointsStats.append([percentIndex, averageNumPoints, maxNumPoints, minNumPoints])
 
     with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area Stats.txt")), "wb") as fp:
-        pickle.dump(percentStats, fp) 
+        pickle.dump(percentAreaStats, fp) 
+
+    with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points Stats.txt")), "wb") as fp:
+        pickle.dump(percentNumPointsStats, fp) 
+
+def GetMasks(organ, patientName, path, threshold):
+    #Returns a 3d array of predicted masks for a given patient name. 
+    if path == None:
+        path = pathlib.Path(__file__).parent.absolute()    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = Model.UNet()
+    #if the model is not UNet switch to MultiResUNet
+    try: 
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    except Exception as e: 
+        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
+            model = Model.MultiResUNet()
+            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        else: 
+            print(e)
+            os._exit(0)    
+    model = model.to(device)    
+    model.eval()
+
+    dataPath = 'Processed_Data/' + organ #+ "_Val/" #Currently looking for patients in the test folder. 
+    dataFolder = os.path.join(path, dataPath)
+    dataFiles = os.listdir(dataFolder)
+    filesRange = list(range(len(dataFiles)))
+
+    patientImages = []
+    for d in filesRange: #First get the files for the patientName given
+        if patientName in dataFiles[d]:
+            patientImages.append(dataFiles[d])
+    patientImages.sort()    
+
+    predictions = [] #First put 2d masks into predictions list and then at the end stack into a 3d array
+    originalMasks = []
+    for image in patientImages:
+        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
+        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
+        x = torch.from_numpy(data[0, :, :])
+        y = data[1,:,:]
+        x = x.to(device)
+        xLen, yLen = x.shape
+        #need to reshape 
+        x = torch.reshape(x, (1,1,xLen,yLen)).float()
+        predictionRaw = (model(x)).cpu().detach().numpy()
+        #now post-process the image
+        x = x.cpu()
+        x = x.numpy()
+        prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
+        predictions.append(prediction)
+        originalMasks.append(y)
+    #Stack into 3d array    
+    predictionsArray = np.stack(predictions, axis=0)
+    originalsArray = np.stack(originalMasks, axis=0)
+    return predictionsArray, originalsArray  
+
 
 
 

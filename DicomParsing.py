@@ -327,16 +327,16 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                         with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump(contourOnPlane[zSlice], fp) 
                 else: 
-                    if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
-                        with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                        with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
-                            pickle.dump(contourOnPlane[zSlice], fp)          
-                    else:
-                        with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                        with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump(contourOnPlane[zSlice], fp)     
+                    #if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
+                    #    with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                    #        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                    #    with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
+                    #        pickle.dump(contourOnPlane[zSlice], fp)          
+                    #else:
+                    with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                    with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                        pickle.dump(contourOnPlane[zSlice], fp)     
             else:
                 with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
@@ -379,7 +379,7 @@ def GetPredictionCTs(patientFileName, path):
         if resizedArray.max() > 2500:
             resizedArray = np.clip(resizedArray, -1000, 2700)
         resizedArray = NormalizeImage(resizedArray) 
-        CTs.append(resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness)
+        CTs.append([resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness])
     CTs.sort(key=lambda x:x[1][2]) #not necessarily in order, so sort according to z-slice.
 
     with open(os.path.join(path, str("Predictions_Patients/" + patientFileName  + "_Processed.txt")), "wb") as fp:
@@ -615,7 +615,13 @@ def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickne
                 newContours[-1].append([x,y,z])
     return newContours        
 
-def GetSliceThickness(patientName, path):
+    return contours
+if __name__ == "__main__":
+    print("Main Method of DicomParsing.py")
+    patientsPath = 'Patient_Files/'
+    GetTrainingData(patientsPath, "Spinal Cord", save=True)
+
+def GetCTInfo(patientName, path):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute() 
 
@@ -628,13 +634,8 @@ def GetSliceThickness(patientName, path):
             break
 
     sliceThickness = dcmread(os.path.join(dataFolder, patientCT)).get("SliceThickness")
+    iop = dcmread(os.path.join(dataFolder, patientCT)).get("ImageOrientationPatient")
+    ipp = dcmread(os.path.join(dataFolder, patientCT)).get("ImagePositionPatient")
+    pixelSpacing = dcmread(os.path.join(dataFolder, patientCT)).get("PixelSpacing")
 
-    return float(sliceThickness)
-
-    return contours
-if __name__ == "__main__":
-    print("Main Method of DicomParsing.py")
-    patientsPath = 'Patient_Files/'
-    GetTrainingData(patientsPath, "Spinal Cord", save=True)
-
-    
+    return float(sliceThickness), iop, ipp, pixelSpacing

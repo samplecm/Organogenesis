@@ -70,6 +70,9 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
             contours = PostProcessing.FixContours(contours)  
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+            contours = PostProcessing.InterpolateSlices(contours, patientFileName, organ, path, sliceThickness)
+            #Test.ContoursToMasks(contours, patientName, path)
+
             for layer_idx in range(len(contours)):
                 if len(contours[layer_idx]) > 0:
                     for point_idx in range(len(contours[layer_idx])):
@@ -80,7 +83,10 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
                         contoursList.append(y)
                         contoursList.append(z)
             with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
-                pickle.dump([contourImages, contours], fp)           
+                pickle.dump([contourImages, contours], fp)       
+                
+
+
     else:
         contours = []
         zValues = [] #keep track of z position to add to contours after
@@ -106,6 +112,8 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
         contours = PostProcessing.FixContours(contours)  
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+        contours = PostProcessing.InterpolateSlices(contours, patientFileName, organ, path, sliceThickness)
+        #Test.ContoursToMasks(contours, patientFileName, path)
 
         for layer_idx in range(len(contours)):
             if len(contours[layer_idx]) > 0:
@@ -119,9 +127,6 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
 
     with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
             pickle.dump([contourImages, contours], fp)      
-
-    print("interpolate")
-    contoursList = PostProcessing.InterpolateSlices(contoursList, patientFileName, organ, path)
 
     existingContours = []
     
@@ -148,9 +153,11 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
                         existingContoursList.append(x)
                         existingContoursList.append(y)
                         existingContoursList.append(z)
+
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
-    return contoursList, existingContoursList 
+
+    return contoursList, existingContoursList, contours 
 
 def GetOriginalContours(organ, patientFileName, path):
 
