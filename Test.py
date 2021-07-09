@@ -493,6 +493,7 @@ def AdaptedFScore(organ, path, threshold):
     TP = 0
     FP = 0
     FN = 0
+    numMasks = 0
 
     #want to use the patients in the validation set so get the patient names
     for file in dataFiles:
@@ -537,14 +538,16 @@ def AdaptedFScore(organ, path, threshold):
                     if round(slice[0][2],2) == round(zValue,2):
                         predictedMask = ContourSliceToMask(slice, xLen, yLen)
                         break
-           fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
-        
-           axs[0,0].imshow(existingMask, cmap = "gray")
-           axs[0,0].set_title("Original Mask")
-           axs[0,1].imshow(predictedMask, cmap="gray")
-           axs[0,1].set_title("Predicted Mask")
 
-           plt.show()
+
+           #fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
+        
+           #axs[0,0].imshow(existingMask, cmap = "gray")
+           #axs[0,0].set_title("Original Mask")
+           #axs[0,1].imshow(predictedMask, cmap="gray")
+           #axs[0,1].set_title("Predicted Mask")
+
+           #plt.show()
             
            for x_idx in range(xLen):
                 for y_idx in range(yLen):
@@ -556,7 +559,9 @@ def AdaptedFScore(organ, path, threshold):
                     elif existingMask[x_idx,y_idx] == 1:     
                         FN += 1
 
-    totalPoints = len(patientList) * xLen * yLen                    
+        numMasks += len(patientFiles)
+
+    totalPoints = numMasks * xLen * yLen                    
     recall = TP / (TP + FN)
     precision = TP / (TP + FP)
     F_Score = 2 / (recall**(-1) + precision ** (-1))
