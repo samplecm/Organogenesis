@@ -490,7 +490,9 @@ def AdaptedFScore(organ, path, threshold):
     dataFiles = sorted(os.listdir(dataFolder))
 
     patientList = []
-    patientCount = 0
+    TP = 0
+    FP = 0
+    FN = 0
 
     #want to use the patients in the validation set so get the patient names
     for file in dataFiles:
@@ -507,51 +509,79 @@ def AdaptedFScore(organ, path, threshold):
                 patientFiles.append(file)
         print(patientFiles)
 
-        #contours = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)[2]
+        contours = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)[2]
+
+        #need to get ipp and pixelSpacing
+        CTInfo = DicomParsing.GetCTInfo(patientName, path)
+        ipp = CTInfo[2]
+        pixelSpacing = CTInfo[3]
+
+        contours = DicomParsing.DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
+
+        contoursZValueList = PostProcessing.GetZValues(contours)
 
         for patientFile in patientFiles:
            with open(os.path.join(dataFolder, patientFile), "rb") as fp:
-                patientData = pickle.load(fp)
-           existingMask = patientData[0][1,:,:]
-           zValue = patientData[1]
+                existingData = pickle.load(fp)
+           existingMask = np.array(existingData[0][1,:,:])
+           zValue = existingData[1]
 
-           print("yep")
+           xLen, yLen = existingMask.shape
 
+           #if the predicted contour does not have any contour points at a z value then make a mask of just zeros 
+           if round(zValue,2) not in contoursZValueList:
+               predictedMask = np.zeros((512,512))
 
+           else:
+                for slice in contours:
+                    if round(slice[0][2],2) == round(zValue,2):
+                        predictedMask = ContourSliceToMask(slice, xLen, yLen)
+                        break
+           fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
+        
+           axs[0,0].imshow(existingMask, cmap = "gray")
+           axs[0,0].set_title("Original Mask")
+           axs[0,1].imshow(predictedMask, cmap="gray")
+           axs[0,1].set_title("Predicted Mask")
 
-def ContoursToMasks(contours, patientName, path):
-    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
-        path = pathlib.Path(__file__).parent.absolute()  
+           plt.show()
+            
+           for x_idx in range(xLen):
+                for y_idx in range(yLen):
+                    if predictedMask[x_idx,y_idx] == 1:
+                        if existingMask[x_idx,y_idx] == 1:
+                            TP += 1
+                        else:
+                            FP += 1
+                    elif existingMask[x_idx,y_idx] == 1:     
+                        FN += 1
 
-    #need to get ipp and pixelSpacing
-    CTInfo = DicomParsing.GetCTInfo(patientName, path)
-    ipp = CTInfo[2]
-    pixelSpacing = CTInfo[3]
+    totalPoints = len(patientList) * xLen * yLen                    
+    recall = TP / (TP + FN)
+    precision = TP / (TP + FP)
+    F_Score = 2 / (recall**(-1) + precision ** (-1))
+    accuracy = (totalPoints - FP - FN) / totalPoints
+  
+    return F_Score, recall, precision, accuracy
 
-    contourIndices = DicomParsing.DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
-
-    print("yep")
-
-
+def ContourSliceToMask(slice, xLen, yLen):
+    #takes a contour slice in image coordinates and returns a mask
     
-    contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
-    backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
-    #combinedImage = Image.fromarray(CT[0])
+    contourImage = Image.new('L', (xLen, yLen), 0 )
     contourPoints = []
     #now add all contour points to contourPoints as Point objects
-    for pointList in contour:
+    for pointList in slice:
         contourPoints.append((int(pointList[0]), int(pointList[1])))
-    contourPolygon = Polygon(contourPoints)
-    ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
-    #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
-    #ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
+
+    if len(contourPoints) < 3:
+        ImageDraw.Draw(contourImage).point(contourPoints)
+    else:
+        contourPolygon = Polygon(contourPoints)
+        ImageDraw.Draw(contourImage).polygon(contourPoints, fill = 1, outline= 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
     contourImage = np.array(contourImage)
-    contourImages.append(contourImage)
-    # combinedImage = np.array(combinedImage)
-    # combinedImages.append(combinedImage)
-    backgroundImage = np.array(backgroundImage)
-    backgroundImages.append(backgroundImage)
-    contourOnImage = True
+
+    return contourImage
+
 
 
 def HaussdorffDistance(organ, path, threshold):

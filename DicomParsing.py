@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import Preprocessing
 import open3d as o3d
 import random
-
 from fastDamerauLevenshtein import damerauLevenshtein
 
     
@@ -327,16 +326,16 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                         with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump(contourOnPlane[zSlice], fp) 
                 else: 
-                    #if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
-                    #    with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                    #        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                    #    with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
-                    #        pickle.dump(contourOnPlane[zSlice], fp)          
-                    #else:
-                    with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                    with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump(contourOnPlane[zSlice], fp)     
+                    if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
+                        with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                        with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
+                            pickle.dump(contourOnPlane[zSlice], fp)          
+                    else:
+                        with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                        with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump(contourOnPlane[zSlice], fp)     
             else:
                 with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
