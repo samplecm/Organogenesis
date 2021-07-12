@@ -73,24 +73,29 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 7, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
-        Test.Best_Threshold(OARs[chosenOAR],400)
+        Train.Train(OARs[chosenOAR], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
+        #Test.Best_Threshold(OARs[chosenOAR],400)
 
-        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
+        #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
-        contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.15, withReal=True, tryLoad=False) 
+        contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P38", path=None, threshold = 0.7, withReal=True, tryLoad=False) 
         
     elif task == 3:
         Test.BestThreshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
     elif task == 4:
-        F_Score, recall, precision, accuracy = Test.FScore(OARs[chosenOAR], threshold=0.2, path = None)    
-        print([F_Score, recall, precision, accuracy])
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(OARs[chosenOAR], path = None, threshold=0.2) 
+        print([F_Score, recall, precision, accuracy, haussdorffDistance])
     elif task == 5:
-        # array, y = Test.GetMasks(OARs[chosenOAR], "HN1004", path=None, threshold=0.7)
-        # import numpy as np
-        # print(np.amax(y))
-        # print(np.amax(array))
-        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1) 
+        #array = Test.GetPredictedMasks(OARs[chosenOAR], "P2", path=None, threshold=0.7)
+        #import numpy as np
+        #print(np.amax(array))
+        #Test.TestPlot(OARs[chosenOAR], path="/media/calebsample/Data/temp", threshold=0.1) 
+        #Test.PercentStats(OARs[chosenOAR], path = None)
+        #Test.HaussdorffDistance("body", path = None, threshold = 0.7)
+        #Test.GetMasks(OARs[chosenOAR], "P38", path = None, threshold = 0.7)
+        #print(DicomParsing.GetCTInfo("P85", path = None))
+        Test.AdaptedFScore(OARs[chosenOAR], path = None, threshold = 0.7)
+        
 
 
    
@@ -113,7 +118,6 @@ if __name__ == "__main__":
     parser.add_argument("--loadModel", help="True/False. True if a pre-existing model is to be loaded for continuing of training.", default=False, action='store_true')
     parser.add_argument("--dataPath", help="If data is not prepared in patient_files folder, specify the path to the directory containing all patient directories.",type=str, default=None)
     parser.add_argument("--preSorted", help="Specify whether or not patient data has already been sorted by \"good\" and \"bad\" contours", default=False, action='store_true')
-    parser.add_argument("--modelType", help="Specify the model type. UNet or MultiResUNet", default="UNet", type=str)
     #GetContours parameters:
     parser.add_argument("--predictionPatientName", help= "Specify the name of the patient in the Predictions_Patient folder that you wish to predict contours for. Alternatively, supply the full path a patient's folder.",type=str, default=None)
     parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model", type=float, default=None)
@@ -216,12 +220,11 @@ if __name__ == "__main__":
             loadModel = args.loadModel
             dataPath = args.dataPath #If dataPath is None, then the program uses the data in the patient_files folder. If it is a path to a directory, data will be processed in this directory. 
             preSorted = args.preSorted
-            modelType = args.modelType
 
-            Train.Train(organ, numEpochs, lr, dataPath, processData, loadModel, preSorted, modelType)
-            bestThreshold = Test.BestThreshold(organ, dataPath, 400, modelType)
+            Train.Train(organ, numEpochs, lr, dataPath, processData, loadModel, preSorted)
+            bestThreshold = Test.BestThreshold(organ, dataPath, 400)
 
-            Test.TestPlot(organ, dataPath, modelType, threshold=bestThreshold)  
+            Test.TestPlot(organ, dataPath, threshold=bestThreshold)  
 
         elif args.function == "GetContours":
             patient = args.predictionPatientName
@@ -245,14 +248,12 @@ if __name__ == "__main__":
                     except: pass     
             tryLoad = args.loadContours
             withReal = args.contoursWithReal   
-            path = args.dataPath  
-            modelType = args.modelType
-            Predict.GetContours(organ, patient, path, modelType = modelType, threshold = thres, withReal=True, tryLoad=False) 
+            path = args.dataPath     
+            Predict.GetContours(organ ,patient,path, threshold = 0.15, withReal=True, tryLoad=False) 
 
         elif args.function == "BestThreshold":
-            path = args.dataPath  
-            modelType = args.modelType
-            Test.BestThreshold(organ, path, modelType, 500)
+            path = args.dataPath     
+            Test.BestThreshold(organ, path, 500)
 
         elif args.function == "FScore":
             thres = args.thres
@@ -264,9 +265,8 @@ if __name__ == "__main__":
                     except KeyboardInterrupt:
                         quit
                     except: pass     
-            path = args.dataPath  
-            modelType = args.modelType
-            F_Score, recall, precision, accuracy = Test.FScore(organ, path, thres, modelType)    
+            path = args.dataPath            
+            F_Score, recall, precision, accuracy = Test.FScore(organ, path, thres)    
             print([F_Score, recall, precision, accuracy])
 
         elif args.function == "PlotMasks":
@@ -280,8 +280,7 @@ if __name__ == "__main__":
                         quit
                     except: pass     
             path = args.dataPath 
-            modelType = args.modelType
-            Test.TestPlot(organ, path, modelType = modelType, threshold=thres)  
+            Test.TestPlot(organ, path, threshold=thres)  
 
 
 
