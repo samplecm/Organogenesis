@@ -93,9 +93,6 @@ def main():
         #print(np.amax(array))
         Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.12, modelType = "UNet") 
 
-
-   
-
 if __name__ == "__main__":
     
         
@@ -114,6 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("--loadModel", help="True/False. True if a pre-existing model is to be loaded for continuing of training.", default=False, action='store_true')
     parser.add_argument("--dataPath", help="If data is not prepared in patient_files folder, specify the path to the directory containing all patient directories.",type=str, default=None)
     parser.add_argument("--preSorted", help="Specify whether or not patient data has already been sorted by \"good\" and \"bad\" contours", default=False, action='store_true')
+    parser.add_argument("--modelType", help="Specify the model type. UNet or MultiResUNet", default="UNet", type=str)
     #GetContours parameters:
     parser.add_argument("--predictionPatientName", help= "Specify the name of the patient in the Predictions_Patient folder that you wish to predict contours for. Alternatively, supply the full path a patient's folder.",type=str, default=None)
     parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model", type=float, default=None)
@@ -216,11 +214,12 @@ if __name__ == "__main__":
             loadModel = args.loadModel
             dataPath = args.dataPath #If dataPath is None, then the program uses the data in the patient_files folder. If it is a path to a directory, data will be processed in this directory. 
             preSorted = args.preSorted
+            modelType = args.modelType
 
-            Train.Train(organ, numEpochs, lr, dataPath, processData, loadModel, preSorted)
-            bestThreshold = Test.BestThreshold(organ, dataPath, 400)
+            Train.Train(organ, numEpochs, lr, dataPath, processData, loadModel, preSorted, modelType)
+            bestThreshold = Test.BestThreshold(organ, dataPath, 400, modelType)
 
-            Test.TestPlot(organ, dataPath, threshold=bestThreshold)  
+            Test.TestPlot(organ, dataPath, modelType, threshold=bestThreshold)  
 
         elif args.function == "GetContours":
             patient = args.predictionPatientName
@@ -244,12 +243,14 @@ if __name__ == "__main__":
                     except: pass     
             tryLoad = args.loadContours
             withReal = args.contoursWithReal   
-            path = args.dataPath     
-            Predict.GetContours(organ ,patient,path, threshold = 0.15, withReal=True, tryLoad=False) 
+            path = args.dataPath  
+            modelType = args.modelType
+            Predict.GetContours(organ, patient, path, modelType = modelType, threshold = thres, withReal=True, tryLoad=False) 
 
         elif args.function == "BestThreshold":
-            path = args.dataPath     
-            Test.BestThreshold(organ, path, 500)
+            path = args.dataPath  
+            modelType = args.modelType
+            Test.BestThreshold(organ, path, modelType, 500)
 
         elif args.function == "FScore":
             thres = args.thres
@@ -261,8 +262,9 @@ if __name__ == "__main__":
                     except KeyboardInterrupt:
                         quit
                     except: pass     
-            path = args.dataPath            
-            F_Score, recall, precision, accuracy = Test.FScore(organ, path, thres)    
+            path = args.dataPath  
+            modelType = args.modelType
+            F_Score, recall, precision, accuracy = Test.FScore(organ, path, thres, modelType)    
             print([F_Score, recall, precision, accuracy])
 
         elif args.function == "PlotMasks":
@@ -276,9 +278,8 @@ if __name__ == "__main__":
                         quit
                     except: pass     
             path = args.dataPath 
-            Test.TestPlot(organ, path, threshold=thres)  
-
-
+            modelType = args.modelType
+            Test.TestPlot(organ, path, modelType = modelType, threshold=thres)  
 
 
 
