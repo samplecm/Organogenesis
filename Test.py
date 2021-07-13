@@ -23,7 +23,7 @@ def TestPlot(organ, path, threshold, modelType):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if modelType.lower() == "unet":
         model = Model.UNet()
-    else: 
+    elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)    
@@ -86,7 +86,7 @@ def GetMasks(organ, patientName, path, threshold, modelType):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if modelType.lower() == "unet":
         model = Model.UNet()
-    else: 
+    elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))    
     model = model.to(device)    
@@ -158,7 +158,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     print("Determining most accurate threshold...")
     if modelType.lower() == "unet":
         model = Model.UNet()
-    else: 
+    elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)     
@@ -387,7 +387,7 @@ def FScore(organ, path, threshold, modelType):
     print("Device being used for training: " + device.type)
     if modelType.lower() == "unet":
         model = Model.UNet()
-    else: 
+    elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)

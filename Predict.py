@@ -24,7 +24,7 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
     print("Device being used for predicting: " + device.type)
     if modelType.lower() == "unet":
         model = Model.UNet()
-    else: 
+    elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
