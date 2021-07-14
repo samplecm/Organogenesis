@@ -17,21 +17,15 @@ from matplotlib import cm
 from scipy.spatial.distance import directed_hausdorff
 
 
-def TestPlot(organ, path, threshold):
+def TestPlot(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Model.UNet()
-    #if the model is not UNet switch to MultiResUNet
-    try: 
-        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-    except Exception as e: 
-        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
-            model = Model.MultiResUNet()
-            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-        else: 
-            print(e)
-            os._exit(0)    
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)    
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
@@ -85,22 +79,16 @@ def TestPlot(organ, path, threshold):
         # axs[2,1].set_title("Predicted Background")
         plt.show()
         
-def GetMasks(organ, patientName, path, threshold):
+def GetMasks(organ, patientName, path, threshold, modelType):
     #Returns a 3d array of predicted masks for a given patient name. 
     if path == None:
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Model.UNet()
-    #if the model is not UNet switch to MultiResUNet
-    try: 
-        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-    except Exception as e: 
-        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
-            model = Model.MultiResUNet()
-            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-        else: 
-            print(e)
-            os._exit(0)    
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))    
     model = model.to(device)    
     model.eval()
 
@@ -160,7 +148,7 @@ def NormalizeImage(image):
     amin = np.amin(image)
     return (image - amin) / ptp    
 
-def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=False):
+def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBackground=False):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -168,17 +156,11 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     #return the model output threshold that maximizes accuracy. onlyMasks if true will calculate statistics
     #only for images that have a mask on the plane, and onlyBackground will do it for images without masks.
     print("Determining most accurate threshold...")
-    model = Model.UNet()
-    #if the model is not UNet switch to MultiResUNet
-    try: 
-        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-    except Exception as e: 
-        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
-            model = Model.MultiResUNet()
-            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-        else: 
-            print(e)
-            os._exit(0)   
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)     
     model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
@@ -199,7 +181,7 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     falsePos = []
     falseNeg = []
     fScores = []
-    thresholds = np.linspace(0.05,0.6,3)
+    thresholds = np.linspace(0.05,0.6,2)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
@@ -228,7 +210,7 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
                         p+=1
                         d+=1
                         continue    
-                image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
+                image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
                 image = image.reshape((2,1,image.shape[1], image.shape[2]))
                 concatList.append(image)
                 p+=1
@@ -302,16 +284,16 @@ def BestThreshold(organ, path, testSize=500, onlyMasks=False, onlyBackground=Fal
     maxFScoreIndices = [i for i, j in enumerate(fScores) if j == maxFScore]
     bestThreshold = thresholds[maxFScoreIndices[0]] 
     #save this threshold
-    thresFile = open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_Thres.txt"),'w')
+    thresFile = open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"),'w')
     thresFile.write(str(bestThreshold))
     thresFile.close()
-    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_Accuracy.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Accuracy.txt"),'wb') as fp:
         pickle.dump(accuracies, fp)      
-    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FalseNeg.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_FalseNeg.txt"),'wb') as fp:
         pickle.dump(falseNeg, fp)   
-    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FalsePos.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_FalsePos.txt"),'wb') as fp:
         pickle.dump(falsePos, fp)         
-    with open(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + "_FScore.txt"),'wb') as fp:
+    with open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_FScore.txt"),'wb') as fp:
         pickle.dump(fScores, fp)    
     return bestThreshold
 
@@ -398,22 +380,16 @@ def PlotPatientContours(contours, existingContours):
     pointCloud.points = o3d.utility.Vector3dVector(pointList[:,:3])
     o3d.visualization.draw_geometries([pointCloud])
 
-def FScore(organ, path, threshold):
+def FScore(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for training: " + device.type)
-    model = Model.UNet()
-    #if the model is not UNet switch to MultiResUNet
-    try: 
-        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-    except Exception as e: 
-        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
-            model = Model.MultiResUNet()
-            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-        else: 
-            print(e)
-            os._exit(0)
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)
     model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
@@ -432,7 +408,7 @@ def FScore(organ, path, threshold):
         concatList = []
         while p < numStack:
             imagePath = dataFiles[d]
-            image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
+            image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
             image = image.reshape((2,1,image.shape[2], image.shape[2]))
             concatList.append(image)
             p+=1
@@ -475,7 +451,7 @@ def FScore(organ, path, threshold):
   
     return F_Score, recall, precision, accuracy
 
-def HaussdorffDistance(organ, path, threshold):
+def HaussdorffDistance(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
 
@@ -495,7 +471,7 @@ def HaussdorffDistance(organ, path, threshold):
     print("Calculating Haussdorf Distance")
 
     for patientName in patientList: 
-        predictedContourList, existingContourList = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)
+        predictedContourList, existingContourList = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot = False)
         
         predictedContourArray = np.array(predictedContourList)
         existingContourArray = np.array(existingContourList)
@@ -516,21 +492,21 @@ def HaussdorffDistance(organ, path, threshold):
     return np.percentile(np.array(HaussdorffDistanceList), 95)
 
 
-def GetEvalData(organ, path, threshold):
+def GetEvalData(organ, path, threshold, modelType):
     #makes a text file containing the hyperparamters of the model, the Fscore data, and the 95th percentile Haussdorff distance
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
 
-    F_Score, recall, precision, accuracy = FScore(organ, path, threshold)
-    haussdorffDistance = HaussdorffDistance(organ, path, threshold)
+    F_Score, recall, precision, accuracy = FScore(organ, path, threshold, modelType)
+    haussdorffDistance = HaussdorffDistance(organ, path, threshold, modelType)
     haussdorffDistance = float(haussdorffDistance)
 
     #create a list of the hyperarameters of the model and the evaluation data
     evalData= []
 
     #load the hyperparamaters of the model
-    with open(os.path.join(path, "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
+    with open(os.path.join(path, "Models/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
         evalData = pickle.load(fp)
 
     evalData.append(["F Score", F_Score])
@@ -541,7 +517,7 @@ def GetEvalData(organ, path, threshold):
     evalData.append(["95th Percentile Haussdorff Distance", haussdorffDistance])
 
     #save the hyperparamters and F score data for the model 
-    with open(os.path.join(path, "Evaluation Data\EvaluationData_Model_" + organ.replace(" ", "") + ".txt"), "w") as fp:
+    with open(os.path.join(path, "Evaluation Data\EvaluationData_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "w") as fp:
         for data in evalData:
             for element in data:
                 fp.write(str(element)+ " ")
