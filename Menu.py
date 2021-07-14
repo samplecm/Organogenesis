@@ -28,7 +28,8 @@ functionOps = [
     "GetContours",
     "BestThreshold",
     "GetEvalData",
-    "PlotMasks"
+    "PlotMasks",
+    "FScore"
 ]
 
 
@@ -86,7 +87,7 @@ def main():
     elif task == 3:
         Test.BestThreshold(OARs[chosenOAR], path=None, testSize=500, modelType = "UNet", onlyMasks=False, onlyBackground=False)
     elif task == 4:
-        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(OARs[chosenOAR], threshold=0.7, path = None, modelType = "UNet")    
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(OARs[chosenOAR], threshold=0.2, path = None, modelType = "unet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:
