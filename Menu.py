@@ -13,7 +13,7 @@ import argparse
 #Create a dictionary of organs and regular expressions for organs
 organOps ={
     "Body": re.compile(r"body?"), 
-    "Spinal Cord": re.compile(r"spi?n?a?l(-|_| )cord"),
+    "Spinal Cord": re.compile(r"(spi?n?a?l)?(-|_| )?cord"),
     "Oral Cavity": re.compile(r"or?a?l(-|_| )cavi?t?y?"),
     "Left Parotid": re.compile(r"le?f?t?(-|_| )(par)o?t?i?d?"),
     "Right Parotid": re.compile(r"ri?g?h?t?(-|_| )(par)o?t?i?d?"),
