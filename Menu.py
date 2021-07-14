@@ -41,7 +41,7 @@ def main():
     print("------------------")
 
     #Keep a list of available structures for training/predicting
-    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid"] #Later will add an "all" option
+    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "All"] #Later will add an "all" option
 
     #Need to get user input. Make a string to easily ask for a number corresponding to an OAR.
     ChooseOAR_string = "Please enter the number(s) for the organ(s) you wish to contour / train a model for. Separate the numbers with spaces \n>>"
@@ -60,6 +60,11 @@ def main():
             if OARCheck == True:
                 for num in chosenOARsNums:
                     chosenOARs.append(OARs[int(num)-1])
+                if "All" in chosenOARs:
+                    chosenOARs = []
+                    for OAR in OARs:
+                        if OAR != "All":
+                            chosenOARs.append(OAR)
                 print("\nSelected Organ(s):")
                 for i, OAR in enumerate(chosenOARs):
                     print(str(i+1) + "." + OAR)
