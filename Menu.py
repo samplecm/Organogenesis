@@ -13,14 +13,15 @@ import argparse
 #Create a dictionary of organs and regular expressions for organs
 organOps ={
     "Body": re.compile(r"body?"), 
-    "Spinal Cord": re.compile(r"(spin?a?l?)?(-,_, )?cord"),
-    "Oral Cavity": re.compile(r"or?a?l?cavi?t?y?"),
+    "Spinal Cord": re.compile(r"spi?n?a?l(-|_| )cord"),
+    "Oral Cavity": re.compile(r"or?a?l(-|_| )cavi?t?y?"),
     "Left Parotid": re.compile(r"le?f?t?(-|_| )(par)o?t?i?d?"),
     "Right Parotid": re.compile(r"ri?g?h?t?(-|_| )(par)o?t?i?d?"),
-    "Left Submandibular": re.compile(r"le?f?t(-,_, )subma?n?d?i?b?u?l?a?r?"),
-    "Right Submandibular": re.compile(r"ri?g?h?t?(-,_, )subma?n?d?i?b?u?l?a?r?"),
-    "Brain Stem": re.compile(r"b?r?a?i?n?(-,_, )stem"),
-    "Larynx": re.compile(r"lary?n?(x|g?o?p?h?a?r?y?n?x?)?") 
+    "Left Submandibular": re.compile(r"le?f?t(-|_| )subma?n?d?i?b?u?l?a?r?"),
+    "Right Submandibular": re.compile(r"ri?g?h?t?(-|_| )subma?n?d?i?b?u?l?a?r?"),
+    "Brain Stem": re.compile(r"b?r?a?i?n?(-|_| )stem"),
+    "Larynx": re.compile(r"lary?n?(x|g?o?p?h?a?r?y?n?x?)?"),
+    "All": re.compile(r"all")
 }
 #Create a list of possible functions
 functionOps = [
@@ -43,26 +44,37 @@ def main():
     OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid"] #Later will add an "all" option
 
     #Need to get user input. Make a string to easily ask for a number corresponding to an OAR.
-    ChooseOAR_string = "Please enter the number for the organ you wish to contour / train a model for \n>>"
+    ChooseOAR_string = "Please enter the number(s) for the organ(s) you wish to contour / train a model for. Separate the numbers with spaces \n>>"
     for i in range(len(OARs)):
         ChooseOAR_string += str(i + 1) + ": " + OARs[i] + "\n" #create list of options
     
     while True: #wait for user input    
         try:
-            chosenOAR = int(input(ChooseOAR_string)) - 1
-            if chosenOAR < len(OARs):
+            chosenOARsNums = input(ChooseOAR_string)
+            chosenOARsNums = chosenOARsNums.split(" ")
+            chosenOARs = []
+            OARCheck = True
+            for num in chosenOARsNums:
+                if int(num) > len(OARs) or int(num) < 1:
+                    OARCheck = False
+            if OARCheck == True:
+                for num in chosenOARsNums:
+                    chosenOARs.append(OARs[int(num)-1])
+                print("\nSelected Organ(s):")
+                for i, OAR in enumerate(chosenOARs):
+                    print(str(i+1) + "." + OAR)
                 break
         except KeyboardInterrupt:
             quit()    
         except: pass     
 
     #Now determine if the goal is to train or to find contours, etc
-    chooseTask_string = "Please enter the number for the desired task\n"
-    chooseTask_string += "1. Train a UNet model for predicting " + str(OARs[chosenOAR])
-    chooseTask_string += "\n2. Predict " + str(OARs[chosenOAR]) + " contours using an existing model"
-    chooseTask_string += "\n3. Determine threshold accuracies for predictions of the " + str(OARs[chosenOAR])
-    chooseTask_string += "\n4. Determine the evaulation data (F score and 95th percentile Haussdorf distance) for the validation set of the " + str(OARs[chosenOAR])
-    chooseTask_string += "\n5. Plot predicted masks for the  " + str(OARs[chosenOAR])
+    chooseTask_string = "\nPlease enter the number for the desired task\n"
+    chooseTask_string += "1. Train a model for predicting "
+    chooseTask_string += "\n2. Predict contours using an existing model"
+    chooseTask_string += "\n3. Determine the best threshold accuracy for predicting"
+    chooseTask_string += "\n4. Determine the evaulation data (F score and 95th percentile Haussdorff distance) for the validation set"
+    chooseTask_string += "\n5. Plot predicted masks"
     chooseTask_string += "\n6. Export model to ONNX" #Not worrying about this anymore for now
     chooseTask_string += "\n7. predict using ONNX model \n>>" #Not worrying about this anymore for now
     
@@ -76,26 +88,28 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(OARs[chosenOAR], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
+        Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
         #Test.Best_Threshold(OARs[chosenOAR],400)
 
 
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
-        contoursList, existingContoursList = Predict.GetContours(OARs[chosenOAR],"P85", path=None, threshold = 0.7, modelType = "UNet", withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"P84",path = None, modelType = "UNet", thresholdList = [0.7, 0.12, 0.1], withReal=True, tryLoad=False) 
         
     elif task == 3:
-        Test.BestThreshold(OARs[chosenOAR], path=None, testSize=500, modelType = "UNet", onlyMasks=False, onlyBackground=False)
+        Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "UNet", onlyMasks=False, onlyBackground=False)
     elif task == 4:
-        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(OARs[chosenOAR], threshold=0.2, path = None, modelType = "unet")    
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.2, path = None, modelType = "unet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:
         #array, y = Test.GetMasks(OARs[chosenOAR], "P10", path=None, threshold=0.7, modelType = "UNet")
         #import numpy as np
         #print(np.amax(y))
-        #print(np.amax(array))
-        Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.12, modelType = "UNet") 
+        ##print(np.amax(array))
+        Test.TestPlot(chosenOARs[0], path=None, threshold=0.7, modelType = "UNet") 
+       
+
 
 
 
@@ -105,8 +119,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Organogenesis: an open source program for autosegmentation of medical images"
     )
-    parser.add_argument('-o', "--organ", help="Specify the organ that a model is to be trained to contour, or that a model is to be used for predicting/generating contours. \
-        Please choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \n left-submandibular, \n right-submandibular, \n brain-stem, \n larynx/laryngopharynx", default=None, type=str)
+    parser.add_argument('-o', "--organs", help="Specify the organ that a model is to be trained to contour, or that a model is to be used for predicting/generating contours. \
+        Please choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \n left-submandibular, \n right-submandibular, \n brain-stem, \n larynx/laryngopharynx", nargs = '+', default=None, type = str)
     parser.add_argument('-f', "--function", help = "Specify the function which is desired to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
         \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"FScore\": calculate the F score for the given organ's model, \
         \"PlotMasks\": Plot 2d CTs with both manually drawn and predicted masks for visual comparison", default=None, type=str)
@@ -120,7 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("--modelType", help="Specify the model type. UNet or MultiResUNet", default=None, type=str)
     #GetContours parameters:
     parser.add_argument("--predictionPatientName", help= "Specify the name of the patient in the Predictions_Patient folder that you wish to predict contours for. Alternatively, supply the full path a patient's folder.",type=str, default=None)
-    parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model", type=float, default=None)
+    parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model", type=float, default=None, nargs = '+')
     parser.add_argument("--contoursWithReal", help="True/False. In GetContours, there is an option to plot predicted contours alongside the DICOM files manually contoured ones.", default=False , action='store_true')
     parser.add_argument("--loadContours", help="True/False. If the contours have already been created previously, tryLoad will attempt to load the processed data to save time.", default=False, action='store_true')
     
@@ -136,32 +150,55 @@ if __name__ == "__main__":
         print("------------------")
 
         #Now ensure that a proper organ has been supplied. 
-        organ = ""
+        organs = ""
+        organs = args.organs
 
-        organMatch = False
-        for key in organOps:
-            if (re.match(organOps[key], args.organ)): 
+        if organs != None:
+            organsList = []
+            organMatch = False
+            for i, organ in enumerate(organs): 
+                organ = organ.lower()
+                organs[i] = organ
+                for key in organOps: 
+                    if (re.match(organOps[key], organ)): 
+                        organsList.append(key) 
+                        break
+
+            if len(organsList) == len(organs):
                 organMatch = True
-                organ = key 
-                print("Selected Organ:" + key)
 
-        if (args.organ == None) or (organMatch==False):
+        if (organs == None) or (organMatch==False):
             while True: #get user input
                 organMatch = False 
                 try:
-                    organSelection = input("\nPlease specify a proper organ that you wish to train or use a model for predicting. \n\nPlease choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \
-                        \n left-submandibular, \n right-submandibular, \n brain-stem, \n larynx/laryngopharynx \n >")
-                    for key in organOps:
-                        if (re.match(organOps[key], organSelection.lower())):
-                            print("Selected Organ:" + key)
-                            organMatch = True
-                            organ = key
-                            break
-                    if organMatch:
-                        break    
+                    organsSelected = input("\nInvalid or no organ(s) specified. Please specify the organ(s) that you wish to train or predict with separated by spaces.\n\nPlease choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \
+                        \n left-submandibular, \n right-submandibular, \n brain-stem, \n larynx/laryngopharynx, \n all\n>")
+                    organs = list(organsSelected.split(" "))
+                    organsList = []
+                    for i, organ in enumerate(organs): 
+                        organ = organ.lower()
+                        organs[i] = organ
+                        for key in organOps: 
+                            if (re.match(organOps[key], organ)): 
+                                organsList.append(key) 
+                                break
+                    if len(organsList) == len(organs):
+                        organMatch = True
+                        break
                 except KeyboardInterrupt:
                     quit()
                 except: pass  
+
+        #Add all organs if all was selcted and print selected organs
+        if "All" in organsList:
+            organsList = []
+            for key in organOps:
+                if key != "All":
+                    organsList.append(key)
+        organsList = list(dict.fromkeys(organsList)) #remove duplicates
+        print("\nSelected organ(s): ")
+        for i, organ in enumerate(organsList): 
+            print(str(i+1) + "." + str(organ))
 
         #Now ensure that a proper function has been requested         
         functionMatch = False 
@@ -172,12 +209,11 @@ if __name__ == "__main__":
         if not functionMatch:
             while True: #get user input 
                 try:
-                    functionSelection = input("\nPlease specify the function to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
-            \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"FScore\": calculate the F score for the given organ's model, \
-            \"PlotMasks\": Plot 2d CTs with both manually drawn and predicted masks for visual comparison \n >")
+                    functionSelection = input("\nInvalid function or no function specified. Please specify the function to be performed. Options include: \n\"Train\": to train a model for predicting the specified organ, \n\"GetContours\": Obtain predicted contour point clouds for a patient, \n\"BestThreshold\": find the best threhold for maximizing the model's F score, \n\"FScore\": calculate the F score for the given organ's model, \n\"PlotMasks\": plot 2d CTs with both manually drawn and predicted masks for visual comparison \n >")
                     for function in functionOps:
                         if (function == functionSelection):
-                            print("Selected:" + functionSelection)
+                            args.function = functionSelection
+                            print("\nSelected function: " + functionSelection)
                             functionMatch = True
                             organ = key
                             break
@@ -187,12 +223,12 @@ if __name__ == "__main__":
                     quit()
                 except: pass  
         else: 
-            print("Selected:" + args.function)        
-
+            print("\nSelected function: " + args.function)        
 
         #Now perform the specified function:
         if args.function == "Train":
-
+            if len(organsList) > 1:
+                print("\nTraining can only be done with one organ at a time. Training will proceed for the " + organsList[0] + "\n")
             #Get learning rate
             lr = args.lr
             if (lr == None):
@@ -232,10 +268,10 @@ if __name__ == "__main__":
             dataPath = args.dataPath #If dataPath is None, then the program uses the data in the patient_files folder. If it is a path to a directory, data will be processed in this directory. 
             preSorted = args.preSorted
 
-            Train.Train(organ, numEpochs, lr, dataPath, processData, loadModel, preSorted, modelType)
-            bestThreshold = Test.BestThreshold(organ, dataPath, 400, modelType)
+            Train.Train(organsList[0], numEpochs, lr, dataPath, processData, loadModel, preSorted, modelType)
+            bestThreshold = Test.BestThreshold(organsList[0], dataPath, modelType = modelType, testSize = 400)
 
-            Test.TestPlot(organ, dataPath, modelType, threshold=bestThreshold)  
+            Test.TestPlot(organsList[0], dataPath, threshold=bestThreshold, modelType = modelType)  
 
         elif args.function == "GetContours":
             patient = args.predictionPatientName
@@ -249,11 +285,13 @@ if __name__ == "__main__":
                         quit()
                     except: pass  
             thres = args.thres
-            if thres == None:
+            if (thres == None) or (len(thres) != len(organsList)):
                 while True:
                     try:
-                        thres = float(input("\nPlease specify the threshold to be used for contour prediction\n >"))       
-                        break
+                        thres = input("\nPlease specify the threshold to be used for contour prediction(s). If predicting with multiple organs, please enter the thresholds in the same order as the organs separated by a space\n >")      
+                        thresList = list(thres.split(" "))
+                        if len(thresList) == len(organsList):
+                            break
                     except KeyboardInterrupt:
                         quit
                     except: pass    
@@ -266,13 +304,21 @@ if __name__ == "__main__":
                         break    
                     except KeyboardInterrupt:
                         quit()
-                    except: pass  
+                    except: pass     
+            else: 
+                thresList = thres
+            for i, threshold in enumerate(thresList):
+                thresList[i] = float(threshold)
             tryLoad = args.loadContours
             withReal = args.contoursWithReal   
-            path = args.dataPath  
-            Predict.GetContours(organ, patient, path, modelType = modelType, threshold = thres, withReal=True, tryLoad=False) 
+            path = args.dataPath    
+            
+            combinedContours = Predict.GetMultipleContours(organsList,patient,path, modelType = modelType, thresholdList = thresList, withReal=True, tryLoad=False) 
+
 
         elif args.function == "BestThreshold":
+            if len(organsList) > 1:
+                print("\nThe best threshold can only be found for one organ at a time. Proceeding with the " + organsList[0])
             path = args.dataPath  
             modelType = args.modelType
             if (modelType == None):
@@ -284,9 +330,11 @@ if __name__ == "__main__":
                     except KeyboardInterrupt:
                         quit()
                     except: pass  
-            Test.BestThreshold(organ, path, modelType, 500)
+            Test.BestThreshold(organsList[0], path, modelType, 500)
 
         elif args.function == "FScore":
+            if len(organsList) > 1:
+                print("\nThe F score can only be found for one organ at a time. Proceeding with the " + organsList[0])
             thres = args.thres
             if thres == None:
                 while True:
@@ -307,10 +355,12 @@ if __name__ == "__main__":
                         quit()
                     except: pass  
             path = args.dataPath  
-            F_Score, recall, precision, accuracy = Test.FScore(organ, path, thres, modelType)    
+            F_Score, recall, precision, accuracy = Test.FScore(organsList[0], path, thres, modelType)    
             print([F_Score, recall, precision, accuracy])
 
         elif args.function == "PlotMasks":
+            if len(organsList) > 1:
+                print("\nMasks can only be plotted for one organ at a time. Proceeding with the " + organsList[0])
             thres = args.thres
             if thres == None:
                 while True:
@@ -331,7 +381,7 @@ if __name__ == "__main__":
                         quit()
                     except: pass  
             path = args.dataPath 
-            Test.TestPlot(organ, path, modelType = modelType, threshold=thres)  
+            Test.TestPlot(organsList[0], path, modelType = modelType, threshold=thres)  
 
 
 

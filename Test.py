@@ -181,7 +181,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     falsePos = []
     falseNeg = []
     fScores = []
-    thresholds = np.linspace(0.05,0.6,2)
+    thresholds = np.linspace(0.05,0.6,8)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
@@ -367,7 +367,7 @@ def PlotPatientContours(contours, existingContours):
     for layer_idx in range(len(existingContours)):
         if len(existingContours[layer_idx]) > 0:
             for point_idx in range(len(existingContours[layer_idx])):
-                x = existingContours[layer_idx][point_idx][0]-25
+                x = existingContours[layer_idx][point_idx][0]-200
                 y = existingContours[layer_idx][point_idx][1]
                 z = existingContours[layer_idx][point_idx][2]
                 
@@ -384,7 +384,7 @@ def FScore(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used computing F Score " + device.type)
+    print("Device being used for computing F Score: " + device.type)
     if modelType.lower() == "unet":
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
