@@ -384,7 +384,7 @@ def FScore(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for training: " + device.type)
+    print("Device being used computing F Score " + device.type)
     if modelType.lower() == "unet":
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
@@ -403,7 +403,7 @@ def FScore(organ, path, threshold, modelType):
 
     xLen,yLen = [0,0]
     while d < len(dataFiles):
-        numStack = min(3, len(dataFiles) - 1 - d) #loading 1400 images at a time (takes about 20GB RAM)
+        numStack = min(3, len(dataFiles) - 1 - d) 
         p = 0
         concatList = []
         while p < numStack:
