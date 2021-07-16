@@ -37,6 +37,7 @@ def TestPlot(organ, path, threshold, modelType):
         imagePath = dataFiles[d]
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
+        data[0][0, :, :] = NormalizeImage(data[0][0, :, :])
         x = torch.from_numpy(data[0][0, :, :])
         y = torch.from_numpy(data[0][1:2, :,:])
         x = x.to(device)
@@ -181,7 +182,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     falsePos = []
     falseNeg = []
     fScores = []
-    thresholds = np.linspace(0.05,0.6,2)
+    thresholds = np.linspace(0.05,0.8,10)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
@@ -211,6 +212,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
                         d+=1
                         continue    
                 image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
+                image[0][:] = NormalizeImage(image[0][:])
                 image = image.reshape((2,1,image.shape[1], image.shape[2]))
                 concatList.append(image)
                 p+=1
@@ -409,6 +411,7 @@ def FScore(organ, path, threshold, modelType):
         while p < numStack:
             imagePath = dataFiles[d]
             image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
+            image[0][:] = NormalizeImage(image[0][:])
             image = image.reshape((2,1,image.shape[2], image.shape[2]))
             concatList.append(image)
             p+=1
@@ -423,13 +426,13 @@ def FScore(organ, path, threshold, modelType):
             x = x.to(device)
             y = y.to(device)
             xLen, yLen = x.shape
-            #need to reshape 
+                        #need to reshape 
             x.requires_grad = True
             y.requires_grad = True
             x = torch.reshape(x, (1,1,xLen,yLen)).float()
             y = y.cpu().detach().numpy()
             y =np.reshape(y, (xLen, yLen))
-            
+ 
             predictionRaw = (model(x)).cpu().detach().numpy()
             predictionRaw = np.reshape(predictionRaw, (xLen, yLen))
             prediction = PostProcessing.Process(predictionRaw, threshold)
