@@ -146,7 +146,19 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
                         existingContoursList.append(z)
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
-    return contoursList, existingContoursList    
+    return contoursList, existingContoursList, contours, existingContours     
+
+def GetMultipleContours(organList, patientFileName, path, thresholdList, modelType, withReal = True, tryLoad=True, plot=True): 
+    contours = []
+    existingContours = []
+
+    for i, organ in enumerate(organList): 
+
+        combinedContours = GetContours(organ,patientFileName,path, modelType = modelType, threshold = thresholdList[i], withReal=True, tryLoad=False, plot = False) 
+        contours = contours + combinedContours[2]
+        existingContours = existingContours + combinedContours[3]
+
+    Test.PlotPatientContours(contours, existingContours)
 
 
 
