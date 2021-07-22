@@ -15,6 +15,7 @@ import plotly.graph_objects as graph_objects
 from mpl_toolkits.mplot3d import Axes3D 
 from matplotlib import cm
 from scipy.spatial.distance import directed_hausdorff
+import math
 
 
 def TestPlot(organ, path, threshold, modelType):
@@ -108,9 +109,10 @@ def GetMasks(organ, patientName, path, threshold, modelType):
     originalMasks = []
     for image in patientImages:
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
-        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
-        x = torch.from_numpy(data[0][0, :, :])
-        y = data[0][1,:,:]
+        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))[0][:]
+        data[0][:] = NormalizeImage(data[0][:])
+        x = torch.from_numpy(data[0][:])
+        y = torch.from_numpy(data[1][:])
         x = x.to(device)
         xLen, yLen = x.shape
         #need to reshape 
@@ -123,8 +125,8 @@ def GetMasks(organ, patientName, path, threshold, modelType):
         predictions.append(predic)
         originalMasks.append(y)
     #Stack into 3d array    
-    predictionsArray = np.stack(predictions, axis=0)
-    originalsArray = np.stack(originalMasks, axis=0)
+    predictionsArray = np.stack(predictions, axis=2)
+    originalsArray = np.stack(originalMasks, axis=2)
     return predictionsArray, originalsArray  
 
         
@@ -250,7 +252,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
                 imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))    
                 imageRecall = imageTP/(imageTP+imageFN)
                 imagePrecision = imageTP/(imageTP+imageFP)
-                if imageRecall != 0 and imagePrecision != 0:
+                if imageRecall != 0 and imagePrecision != 0 and math.isnan(imageRecall) == False and math.isnan(imagePrecision) == False:
                     imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
                     thresFScore.append(imageFScore)
                 imageAccuracy *= 100/float(prediction.size) 
