@@ -109,9 +109,10 @@ def GetMasks(organ, patientName, path, threshold, modelType):
     originalMasks = []
     for image in patientImages:
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
-        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
-        x = torch.from_numpy(data[0][0, :, :])
-        y = data[0][1,:,:]
+        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))[0][:]
+        data[0][:] = NormalizeImage(data[0][:])
+        x = torch.from_numpy(data[0][:])
+        y = torch.from_numpy(data[1][:])
         x = x.to(device)
         xLen, yLen = x.shape
         #need to reshape 
@@ -124,8 +125,8 @@ def GetMasks(organ, patientName, path, threshold, modelType):
         predictions.append(predic)
         originalMasks.append(y)
     #Stack into 3d array    
-    predictionsArray = np.stack(predictions, axis=0)
-    originalsArray = np.stack(originalMasks, axis=0)
+    predictionsArray = np.stack(predictions, axis=2)
+    originalsArray = np.stack(originalMasks, axis=2)
     return predictionsArray, originalsArray  
 
         
@@ -184,7 +185,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     falseNeg = []
     fScores = []
 
-    thresholds = np.linspace(0.7,0.9,3)
+    thresholds = np.linspace(0.05,0.6,8)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
