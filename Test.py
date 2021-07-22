@@ -15,6 +15,7 @@ import plotly.graph_objects as graph_objects
 from mpl_toolkits.mplot3d import Axes3D 
 from matplotlib import cm
 from scipy.spatial.distance import directed_hausdorff
+import math
 
 
 def TestPlot(organ, path, threshold, modelType):
@@ -183,7 +184,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     falseNeg = []
     fScores = []
 
-    thresholds = np.linspace(0.05,0.6,8)
+    thresholds = np.linspace(0.7,0.9,3)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
@@ -250,7 +251,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
                 imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))    
                 imageRecall = imageTP/(imageTP+imageFN)
                 imagePrecision = imageTP/(imageTP+imageFP)
-                if imageRecall != 0 and imagePrecision != 0:
+                if imageRecall != 0 and imagePrecision != 0 and math.isnan(imageRecall) == False and math.isnan(imagePrecision) == False:
                     imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
                     thresFScore.append(imageFScore)
                 imageAccuracy *= 100/float(prediction.size) 
