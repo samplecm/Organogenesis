@@ -9,6 +9,7 @@ import Predict
 import PostProcessing
 import re 
 import argparse 
+import DicomSaving
 
 #Create a dictionary of organs and regular expressions for organs
 organOps ={
@@ -99,12 +100,12 @@ def main():
 
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"P84",path = None, modelType = "UNet", thresholdList = [0.7, 0.12, 0.1], withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"P85",path = None, modelType = "unet", thresholdList = [0.7], withReal=True, tryLoad=False) 
         
     elif task == 3:
         Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "UNet", onlyMasks=False, onlyBackground=False)
     elif task == 4:
-        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.2, path = None, modelType = "unet")    
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.8, path = None, modelType = "multiresunet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:
@@ -113,7 +114,7 @@ def main():
         #print(np.amax(y))
         ##print(np.amax(array))
         Test.TestPlot(chosenOARs[0], path=None, threshold=0.7, modelType = "UNet") 
-       
+        
 
 
 

@@ -12,6 +12,7 @@ import PostProcessing
 import cv2 as cv
 import DicomParsing
 import Test
+import DicomSaving
 
 
 
@@ -66,6 +67,7 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
             contours = PostProcessing.FixContours(contours)  
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+
             for layer_idx in range(len(contours)):
                 if len(contours[layer_idx]) > 0:
                     for point_idx in range(len(contours[layer_idx])):
@@ -113,9 +115,6 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
                     contoursList.append(y)
                     contoursList.append(z)
 
-
-
-
         with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
             pickle.dump([contourImages, contours], fp)      
 
@@ -144,6 +143,9 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
                         existingContoursList.append(x)
                         existingContoursList.append(y)
                         existingContoursList.append(z)
+
+    DicomSaving.SaveToDICOM(patientFileName, organ, path, contours)
+
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
     return contoursList, existingContoursList, contours, existingContours     

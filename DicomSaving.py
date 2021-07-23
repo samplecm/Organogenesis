@@ -1,66 +1,15 @@
 import numpy as np 
 import pydicom
-from pydicom import dcmread
 import pickle
 import os
-import glob
-import pathlib
-from shapely.geometry import Point
-from shapely.geometry.polygon import Polygon
-from PIL import Image, ImageDraw
-from operator import itemgetter
-import matplotlib.pyplot as plt
-import Preprocessing
-import open3d as o3d
-import random
-from rt_utils import RTStructBuilder
-import matplotlib.pyplot as plt
-from rt_utils import RTStruct
-from rt_utils.image_helper import get_contours_coords
-from rt_utils.utils import ROIData, SOPClassUID
-from rt_utils import ds_helper
-from pydicom.uid import generate_uid
+from rtstruct_builder import RTStructBuilder
+from rtstruct import RTStruct
+from rtutils import ROIData
+import ds_helper
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.sequence import Sequence
-from pydicom.uid import ImplicitVRLittleEndian
 
-def AddContour():
-    ds_helper.create_contour_sequence = NewCreateContourSequence
-
-def NewCreateContourSequence(roi_data,series_data):
-    """
-    Iterate through each slice of the contour
-    For each connected segment within a slice, create a contour
-    """
-    contour_coords = []
-    contour_sequence = Sequence()
-    for i, series_slice in enumerate(series_data):
-        contour_slice = roi_data.mask[i]
-
-        contour_slice = list(contour_slice)
-
-
-        if len(contour_slice) == 0: #do not append contour info for the slice if there is none
-            continue
-
-        contour_coords.append(contour_slice)
-
-        for contour_data in contour_coords:
-            contour = ds_helper.create_contour(series_slice, contour_data)
-            contour_sequence.append(contour)
-
-    return contour_sequence
-
-def NewValidateMask(self, mask):
-
-    if len(self.series_data) != len(mask):
-            raise RTStruct.ROIException(
-                "Contour must have the save number of layers (In the 3rd dimension) as input series. " +
-                f"Expected {len(self.series_data)}, got {len(mask)}")
-
-    return True
-
-def SaveToDICOM(organ, patientName, path, contours):
+def SaveToDICOM(patientName, organ, path, contours):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
 
@@ -75,19 +24,30 @@ def SaveToDICOM(organ, patientName, path, contours):
 
     structPath = os.path.join(patientPath, structFile)
 
-    # Load existing RT Struct. Requires the series path and existing RT Struct path
+    #load existing RT Struct
+    rtStruct = RTStructBuilder.create_from(dicom_series_path = patientPath, rt_struct_path = structPath)
 
-    rtstruct = RTStructBuilder.create_from(dicom_series_path = patientPath, rt_struct_path = structPath)
+    #reshape contours so that it is compatible with dicom files
+    newContours = []
+    for slice in contours:
+        newPoints = []
+        for point in slice:
+            newPoints.append(point[0])
+            newPoints.append(point[1])
+            newPoints.append(point[2])
+        newContours.append(newPoints)
 
-    ds_helper.create_contour_sequence = NewCreateContourSequence
-    RTStruct.validate_mask = NewValidateMask
+    contours = newContours
 
-    #Add ROI. This is the same as the above example.
-    
-    rtstruct.add_roi(mask = contours, color=[255, 0, 255], name="RT-Utils ROI!")
+    #if there is already a contour under the name of the organ rename to "organ_1"
+    ROIName = organ
+    for element in rtStruct.ds.StructureSetROISequence:
+        if str(element.ROIName).lower() == organ.lower():
+            ROIName = organ + "_1"
 
+    #add the ROI
+    rtStruct.add_roi(contours = contours, color=[0, 255, 0], name=ROIName)
 
-    rtstruct.save('new-rt-struct')
-
-
-    print("yep")
+    #save the ROI to a new struct file
+    newStructFile = structFile.split(".")[0] + "_1"
+    rtStruct.save(str(os.path.join(patientPath, newStructFile)))

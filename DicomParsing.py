@@ -222,18 +222,19 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                     #now add all contour points to contourPoints as Point objects
                     for pointList in contour:
                         contourPoints.append((int(pointList[0]), int(pointList[1])))
-                    contourPolygon = Polygon(contourPoints)
-                    ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
-                    #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
-                    #ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
-                    contourImage = np.array(contourImage)
-                    contourImages.append(contourImage)
-                    # combinedImage = np.array(combinedImage)
-                    # combinedImages.append(combinedImage)
-                    backgroundImage = np.array(backgroundImage)
-                    backgroundImages.append(backgroundImage)
-                    contourOnImage = True
-                    break
+                    if len(pointList) > 3:
+                        contourPolygon = Polygon(contourPoints)
+                        ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
+                        #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
+                        #ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
+                        contourImage = np.array(contourImage)
+                        contourImages.append(contourImage)
+                        # combinedImage = np.array(combinedImage)
+                        # combinedImages.append(combinedImage)
+                        backgroundImage = np.array(backgroundImage)
+                        backgroundImages.append(backgroundImage)
+                        contourOnImage = True
+                        break
             if not contourOnImage:
                 #if no contour on that layer, add just zeros array
                 contourImage = np.zeros((xLen,yLen))
@@ -338,6 +339,8 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                         with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump(contourOnPlane[zSlice], fp)     
             else:
+                if zSlice < 10:
+                    sliceText = "0" + str(zSlice)
                 with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
                 with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
