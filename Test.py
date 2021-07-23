@@ -474,10 +474,10 @@ def HaussdorffDistance(organ, path, threshold, modelType):
         if str(file).split("_")[1] not in patientList:
             patientList.append(str(file).split("_")[1])
 
-    print("Calculating Haussdorf Distance")
+    print("Calculating Haussdorff Distance")
 
     for patientName in patientList: 
-        predictedContourList, existingContourList = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot = False)
+        predictedContourList, existingContourList, predictedContour, existingContour = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot = False)
         
         predictedContourArray = np.array(predictedContourList)
         existingContourArray = np.array(existingContourList)
