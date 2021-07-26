@@ -619,22 +619,3 @@ if __name__ == "__main__":
     print("Main Method of DicomParsing.py")
     patientsPath = 'Patient_Files/'
     GetTrainingData(patientsPath, "Spinal Cord", save=True)
-
-def GetCTInfo(patientName, path):
-    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
-        path = pathlib.Path(__file__).parent.absolute() 
-
-    dataPath = 'Patient_Files/' + patientName
-    dataFolder = os.path.join(path, dataPath)
-    dataFiles = sorted(os.listdir(dataFolder))
-    for file in dataFiles: 
-        if "CT" in file:
-            patientCT = file 
-            break
-
-    sliceThickness = dcmread(os.path.join(dataFolder, patientCT)).get("SliceThickness")
-    iop = dcmread(os.path.join(dataFolder, patientCT)).get("ImageOrientationPatient")
-    ipp = dcmread(os.path.join(dataFolder, patientCT)).get("ImagePositionPatient")
-    pixelSpacing = dcmread(os.path.join(dataFolder, patientCT)).get("PixelSpacing")
-
-    return float(sliceThickness), iop, ipp, pixelSpacing

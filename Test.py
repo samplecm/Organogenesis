@@ -463,121 +463,6 @@ def FScore(organ, path, threshold, modelType):
   
     return F_Score, recall, precision, accuracy
 
-def AdaptedFScore(organ, path, threshold):
-    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
-        path = pathlib.Path(__file__).parent.absolute() 
-
-    dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(path, dataPath)
-    dataFiles = sorted(os.listdir(dataFolder))
-
-    patientList = []
-    TP = 0
-    FP = 0
-    FN = 0
-    numMasks = 0
-
-    #want to use the patients in the validation set so get the patient names
-    for file in dataFiles:
-        if str(file).split("_")[1] not in patientList:
-            patientList.append(str(file).split("_")[1])
-
-    print("Calculating F Score")
-
-    for patientName in patientList: 
-        patientFiles = []
-        print(patientName)
-        for file in dataFiles: 
-            if patientName in file:
-                patientFiles.append(file)
-        print(patientFiles)
-
-        contours = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)[2]
-
-        print("z slice and area")
-        contours = ContourOrientation(organ, patientName, path, threshold, contours)
-
-        #need to get ipp and pixelSpacing
-        CTInfo = DicomParsing.GetCTInfo(patientName, path)
-        ipp = CTInfo[2]
-        pixelSpacing = CTInfo[3]
-
-        contours = DicomParsing.DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
-
-
-        contoursZValueList = PostProcessing.GetZValues(contours)
-
-        for patientFile in patientFiles:
-           with open(os.path.join(dataFolder, patientFile), "rb") as fp:
-                existingData = pickle.load(fp)
-           existingMask = np.array(existingData[0][1,:,:])
-           zValue = existingData[1]
-
-           xLen, yLen = existingMask.shape
-
-           #if the predicted contour does not have any contour points at a z value then make a mask of just zeros 
-           if round(zValue,2) not in contoursZValueList:
-               predictedMask = np.zeros((512,512))
-
-           else:
-                for slice in contours:
-                    if len(slice)> 0:
-                        if round(slice[0][2],2) == round(zValue,2):
-                            predictedMask = ContourSliceToMask(slice, xLen, yLen)
-                            #predictedMask = AlternateContourSliceToMask(slice, xLen, yLen)
-                            break
-
-           #if 1.0 in existingMask: 
-           #    print(zValue)
-           #    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
-        
-           #    axs[0,0].imshow(existingMask, cmap = "gray")
-           #    axs[0,0].set_title("Original Mask")
-           #    axs[0,1].imshow(predictedMask, cmap="gray")
-           #    axs[0,1].set_title("Predicted Mask")
-
-           #    plt.show()
-            
-           for x_idx in range(xLen):
-                for y_idx in range(yLen):
-                    if predictedMask[x_idx,y_idx] == 1:
-                        if existingMask[x_idx,y_idx] == 1:
-                            TP += 1
-                        else:
-                            FP += 1
-                    elif existingMask[x_idx,y_idx] == 1:     
-                        FN += 1
-
-        numMasks += len(patientFiles)
-
-    totalPoints = numMasks * xLen * yLen                    
-    recall = TP / (TP + FN)
-    precision = TP / (TP + FP)
-    F_Score = 2 / (recall**(-1) + precision ** (-1))
-    accuracy = (totalPoints - FP - FN) / totalPoints
-  
-    return F_Score, recall, precision, accuracy
-
-def ContourSliceToMask(slice, xLen, yLen):
-    #takes a contour slice in image coordinates and returns a mask
-    
-    contourImage = Image.new('L', (xLen, yLen), 0 )
-    contourPoints = []
-    #now add all contour points to contourPoints as Point objects
-    for pointList in slice:
-        contourPoints.append((int(pointList[0]), int(pointList[1])))
-
-    if len(contourPoints) < 3:
-        ImageDraw.Draw(contourImage).point(contourPoints)
-    else:
-        contourPolygon = Polygon(contourPoints)
-        ImageDraw.Draw(contourImage).polygon(contourPoints, fill = 1, outline= 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
-    contourImage = np.array(contourImage)
-
-    return contourImage
-
-
-
 def HaussdorffDistance(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
@@ -665,14 +550,16 @@ def PercentStats(organ, path):
 
     for patientCount, patientName in enumerate(patientList): 
         #get the existing contours for each patient
-        contourList = Predict.GetOriginalContours(organ, patientName, path)[1]
+        contourData = Predict.GetOriginalContours(organ, patientName, path)
+        contour = contourData[0]
+        contourList = contourData[1]
         contourArray = np.array(contourList)
 
         #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
         contourArray = contourArray.reshape(int(contourArray.shape[0]/3), 3)
 
         #get the z values in the contour
-        zValueList = PostProcessing.GetZValues(contourList)
+        zValueList = PostProcessing.GetZValues(contour)
 
         for j, zValue in enumerate(zValueList):
             #create the list of contour points at the specified z value 
@@ -730,70 +617,6 @@ def PercentStats(organ, path):
 
     with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points Stats.txt")), "wb") as fp:
         pickle.dump(percentNumPointsStats, fp) 
-
-
-def ContourOrientation(organ, patientName, path, threshold, contours):
-    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
-        path = pathlib.Path(__file__).parent.absolute() 
-
-    #contours = Predict.GetOriginalContours(organ, patientName, path)[0]
-
-    #contours = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)[2]
-
-    for slice in contours:
-        area = 0
-
-        if len(slice) > 0:
-            zValue = slice[0][2]
-            pointsList =  PostProcessing.GetPointsAtZValue(contours, zValue)
-            print(slice[0][2])
-
-            for i in range(len(pointsList) - 1):
-                area += (pointsList[i+1][0] - pointsList[i][0]) * (pointsList[i+1][1] + pointsList[i][1])
-
-            print(area)
-
-            if area < 0:
-                pointsList.reverse()
-                area = 0
-                for i in range(len(pointsList) - 1):
-                    area += (pointsList[i+1][0] - pointsList[i][0]) * (pointsList[i+1][1] + pointsList[i][1])
-                print("New Area")
-                print(area)
-
-                newSlice = []
-
-                for point in pointsList:
-                    newSlice.append([point[0],point[1],zValue])
-
-                contours.remove(slice)
-                contours.append(newSlice)
-
-    return contours
-       
-def AlternateContourSliceToMask(slice, xLen, yLen):
-    image = np.zeros((512,512))
-
-    #contours = Predict.GetOriginalContours(organ, patientName, path)[0]
-    #for slice in contours: 
-    contourPoints = []
-    for pointList in slice:
-        contourPoints.append([int(pointList[0]), int(pointList[1])])
-
-    contourPoints = np.array(contourPoints)
-
-    cv.fillPoly(image, [contourPoints], 1, 8)
-
-    #fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
-        
-    #axs[0,0].imshow(image, cmap = "gray")
-    #axs[0,0].set_title("Original Mask")
-
-    #plt.show()
-
-    #print(image)
-
-    return image
 
 
 

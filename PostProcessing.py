@@ -332,8 +332,6 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
 
     slicesToFix = list(set(UnreasonableArea(contours, organ, path) + MissingSlices(contours, patientName, path, sliceThickness) + UnreasonableNumPoints(contours, organ, path)))
 
-    print(slicesToFix)
-
     contourZValues = GetZValues(contours)
     maxZValue = max(contourZValues)
     minZValue = min(contourZValues)
@@ -358,8 +356,7 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
                     zValueBelow = zValue - i*sliceThickness
                     distanceBelow = i*sliceThickness
             i += 1
-        print(zValueBelow)
-        print(distanceBelow)
+
         i = 1
         while zValueAbove == zValue: 
             if zValue + i*sliceThickness not in slicesToFix:
@@ -370,13 +367,9 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
                     zValueAbove = zValue + i*sliceThickness
                     distanceAbove = i*sliceThickness 
             i += 1
-        print(zValueAbove)
-        print(distanceAbove)
 
         pointsListAbove = GetPointsAtZValue(contours, zValueAbove)
         pointsListBelow = GetPointsAtZValue(contours, zValueBelow)
-        print(len(pointsListAbove))
-        print(len(pointsListBelow))
 
         interpolatedPointsList = []
 
@@ -385,25 +378,20 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
                 pointBelow = ClosestPoint(pointAbove, pointsListBelow) 
                 interpolatedPoint = InterpolatePoint(pointAbove, pointBelow, distanceBelow+distanceAbove, distanceAbove) 
                 interpolatedPointsList.append([interpolatedPoint[0], interpolatedPoint[1], zValue])
-            print(len(contours))
         else: 
             for pointBelow in pointsListBelow:
                 pointAbove = ClosestPoint(pointBelow, pointsListAbove) 
                 interpolatedPoint = InterpolatePoint(pointBelow, pointAbove, distanceBelow+distanceAbove, distanceBelow) 
                 interpolatedPointsList.append([interpolatedPoint[0], interpolatedPoint[1], zValue])
-            print(len(contours))
 
         for slice in contours:
             #remove the contour points for the interpolated slice
             if len(slice) > 0:
                 if round(slice[0][2],2) == zValue:
-                    print(len(contours))
                     contours.remove(slice)
-                    print(len(contours))
                     break  
         #add the interpolated contour points
         contours.append(interpolatedPointsList)
-        print(len(contours))
 
     return contours
 
@@ -463,6 +451,11 @@ def UnreasonableNumPoints(contours, organ, path):
         Test.PercentStats(organ, path)
         percentNumPointsStats = pickle.load(open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points Stats.txt")),'rb'))
 
+    #different factors work better for different organs, therefore choose the right one
+    factorDictionary = {"body":0.1,"spinal cord":0.3, "oral cavity":0.2, "left Parotid": 0.2, "right Parotid":0.2}
+
+    factor = factorDictionary[organ.lower()]
+
     unreasonableNumPoints = []
 
     for j,  zValue in enumerate(zValueList): 
@@ -473,7 +466,7 @@ def UnreasonableNumPoints(contours, organ, path):
         #if the number of points is less than the minimum number of points for that percentage, add to the unresonable number of points list
         for element in percentNumPointsStats:
                 if percent == element[0]:
-                    if numPoints < element[3]*0.3:
+                    if numPoints < element[3]*factor:
                         unreasonableNumPoints.append(zValue)
                     break
 
