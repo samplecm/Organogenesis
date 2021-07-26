@@ -13,24 +13,20 @@ import cv2 as cv
 import DicomParsing
 import Test
 
-def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoad=True, plot=True):
+
+
+def GetContours(organ, patientFileName, path, threshold, modelType, withReal = True, tryLoad=True, plot=True):
  
     #with real loads pre=existing DICOM roi to compare the prediction with 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute() 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for predicting: " + device.type)
-    model = Model.UNet()
-    #if the model is not UNet switch to MultiResUNet
-    try: 
-        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-    except Exception as e: 
-        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
-            model = Model.MultiResUNet()
-            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-        else: 
-            print(e)
-            os._exit(0)
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
     model.eval()
     contoursList = [] #The 1d contours list to be returned
@@ -156,6 +152,19 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
 
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
+    return contoursList, existingContoursList, contours, existingContours     
+
+def GetMultipleContours(organList, patientFileName, path, thresholdList, modelType, withReal = True, tryLoad=True, plot=True): 
+    contours = []
+    existingContours = []
+
+    for i, organ in enumerate(organList): 
+
+        combinedContours = GetContours(organ,patientFileName,path, modelType = modelType, threshold = thresholdList[i], withReal=True, tryLoad=False, plot = False) 
+        contours = contours + combinedContours[2]
+        existingContours = existingContours + combinedContours[3]
+
+    Test.PlotPatientContours(contours, existingContours)
 
     return contoursList, existingContoursList, contours 
 

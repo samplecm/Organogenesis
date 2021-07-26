@@ -30,6 +30,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
     torch.cuda.empty_cache()
     dataPath = 'Processed_Data/' + organ + "/"
     if path==None: #if a path to data was not supplied, assume that patient data has been placed in the Patient_Files folder in the current directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
         patientsPath = 'Patient_Files/'
         filesFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), patientsPath)
         dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath) #this gives the absolute folder reference of the datapath variable defined above
@@ -99,10 +100,10 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
     elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
     if loadModel == True:
-        model.load_state_dict(torch.load(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
         try: #try to load lists which are keeping track of the loss over time
-            trainLossHistory = pickle.load(open(os.path.join(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/")), str(trainLossHistory)), 'rb'))  
-            epochLossHistory = pickle.load(open(os.path.join(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/")), str(epochLossHistory)), 'rb'))  
+            trainLossHistory = pickle.load(open(os.path.join(path, "Loss History/" + organ + "/" + modelType.lower() + "_" + "trainLossHistory") + ".txt", 'rb'))  
+            epochLossHistory = pickle.load(open(os.path.join(path, "Loss History/" + organ + "/" + modelType.lower() + "_" + "epochLossHistory") + ".txt", 'rb'))  
         except:
             trainLossHistory = []
             epochLossHistory = []
@@ -155,7 +156,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
        
         #end of epoch: check validation loss and
         #Save the model:
-        torch.save(model.state_dict(), os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".pt")) 
+        torch.save(model.state_dict(), os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")) 
         
         #for param_tensor in UNetModel.state_dict():
         #    print(param_tensor, "\t", UNetModel.state_dict()[param_tensor].size())
@@ -181,7 +182,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
         hyperparameters.append(["Data Augmentation", "Off"])
 
         #save the hyperparameters to a binary file to be used in Test.FScore()
-        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
             pickle.dump(hyperparameters, fp)
 
         epochLoss = Validate(organ, model) #validation step
@@ -193,7 +194,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
         with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + modelType.lower() + "_" + "trainLossHistory" + ".txt")), "wb") as fp:
             pickle.dump(trainLossHistory, fp)         
         with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + modelType.lower() + "_" + "epochLossHistory" + ".txt")), "wb") as fp:
-            pickle.dump(sum(epochLossHistory)/len(epochLossHistory), fp)  
+            pickle.dump(epochLossHistory, fp)  
             
         #check if the change in validation loss was < 0.001 for 4 epochs
         stopCount = 0   
