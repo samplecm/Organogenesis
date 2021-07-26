@@ -463,7 +463,6 @@ def FScore(organ, path, threshold, modelType):
   
     return F_Score, recall, precision, accuracy
 
-def HaussdorffDistance(organ, path, threshold, modelType):
 def AdaptedFScore(organ, path, threshold):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute() 
@@ -495,12 +494,16 @@ def AdaptedFScore(organ, path, threshold):
 
         contours = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)[2]
 
+        print("z slice and area")
+        contours = ContourOrientation(organ, patientName, path, threshold, contours)
+
         #need to get ipp and pixelSpacing
         CTInfo = DicomParsing.GetCTInfo(patientName, path)
         ipp = CTInfo[2]
         pixelSpacing = CTInfo[3]
 
         contours = DicomParsing.DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
+
 
         contoursZValueList = PostProcessing.GetZValues(contours)
 
@@ -518,19 +521,22 @@ def AdaptedFScore(organ, path, threshold):
 
            else:
                 for slice in contours:
-                    if round(slice[0][2],2) == round(zValue,2):
-                        predictedMask = ContourSliceToMask(slice, xLen, yLen)
-                        break
+                    if len(slice)> 0:
+                        if round(slice[0][2],2) == round(zValue,2):
+                            predictedMask = ContourSliceToMask(slice, xLen, yLen)
+                            #predictedMask = AlternateContourSliceToMask(slice, xLen, yLen)
+                            break
 
-
-           #fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
+           #if 1.0 in existingMask: 
+           #    print(zValue)
+           #    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
         
-           #axs[0,0].imshow(existingMask, cmap = "gray")
-           #axs[0,0].set_title("Original Mask")
-           #axs[0,1].imshow(predictedMask, cmap="gray")
-           #axs[0,1].set_title("Predicted Mask")
+           #    axs[0,0].imshow(existingMask, cmap = "gray")
+           #    axs[0,0].set_title("Original Mask")
+           #    axs[0,1].imshow(predictedMask, cmap="gray")
+           #    axs[0,1].set_title("Predicted Mask")
 
-           #plt.show()
+           #    plt.show()
             
            for x_idx in range(xLen):
                 for y_idx in range(yLen):
@@ -572,7 +578,7 @@ def ContourSliceToMask(slice, xLen, yLen):
 
 
 
-def HaussdorffDistance(organ, path, threshold):
+def HaussdorffDistance(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
 
@@ -659,7 +665,7 @@ def PercentStats(organ, path):
 
     for patientCount, patientName in enumerate(patientList): 
         #get the existing contours for each patient
-        contourList = Predict.GetOriginalContours(organ, patientName, path)
+        contourList = Predict.GetOriginalContours(organ, patientName, path)[1]
         contourArray = np.array(contourList)
 
         #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
@@ -725,58 +731,76 @@ def PercentStats(organ, path):
     with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points Stats.txt")), "wb") as fp:
         pickle.dump(percentNumPointsStats, fp) 
 
-def GetMasks(organ, patientName, path, threshold):
-    #Returns a 3d array of predicted masks for a given patient name. 
-    if path == None:
-        path = pathlib.Path(__file__).parent.absolute()    
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Model.UNet()
-    #if the model is not UNet switch to MultiResUNet
-    try: 
-        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-    except Exception as e: 
-        if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
-            model = Model.MultiResUNet()
-            model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
-        else: 
-            print(e)
-            os._exit(0)    
-    model = model.to(device)    
-    model.eval()
 
-    dataPath = 'Processed_Data/' + organ #+ "_Val/" #Currently looking for patients in the test folder. 
-    dataFolder = os.path.join(path, dataPath)
-    dataFiles = os.listdir(dataFolder)
-    filesRange = list(range(len(dataFiles)))
+def ContourOrientation(organ, patientName, path, threshold, contours):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
 
-    patientImages = []
-    for d in filesRange: #First get the files for the patientName given
-        if patientName in dataFiles[d]:
-            patientImages.append(dataFiles[d])
-    patientImages.sort()    
+    #contours = Predict.GetOriginalContours(organ, patientName, path)[0]
 
-    predictions = [] #First put 2d masks into predictions list and then at the end stack into a 3d array
-    originalMasks = []
-    for image in patientImages:
-        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
-        data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))
-        x = torch.from_numpy(data[0, :, :])
-        y = data[1,:,:]
-        x = x.to(device)
-        xLen, yLen = x.shape
-        #need to reshape 
-        x = torch.reshape(x, (1,1,xLen,yLen)).float()
-        predictionRaw = (model(x)).cpu().detach().numpy()
-        #now post-process the image
-        x = x.cpu()
-        x = x.numpy()
-        prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
-        predictions.append(prediction)
-        originalMasks.append(y)
-    #Stack into 3d array    
-    predictionsArray = np.stack(predictions, axis=0)
-    originalsArray = np.stack(originalMasks, axis=0)
-    return predictionsArray, originalsArray  
+    #contours = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)[2]
+
+    for slice in contours:
+        area = 0
+
+        if len(slice) > 0:
+            zValue = slice[0][2]
+            pointsList =  PostProcessing.GetPointsAtZValue(contours, zValue)
+            print(slice[0][2])
+
+            for i in range(len(pointsList) - 1):
+                area += (pointsList[i+1][0] - pointsList[i][0]) * (pointsList[i+1][1] + pointsList[i][1])
+
+            print(area)
+
+            if area < 0:
+                pointsList.reverse()
+                area = 0
+                for i in range(len(pointsList) - 1):
+                    area += (pointsList[i+1][0] - pointsList[i][0]) * (pointsList[i+1][1] + pointsList[i][1])
+                print("New Area")
+                print(area)
+
+                newSlice = []
+
+                for point in pointsList:
+                    newSlice.append([point[0],point[1],zValue])
+
+                contours.remove(slice)
+                contours.append(newSlice)
+
+    return contours
+       
+def AlternateContourSliceToMask(slice, xLen, yLen):
+    image = np.zeros((512,512))
+
+    #contours = Predict.GetOriginalContours(organ, patientName, path)[0]
+    #for slice in contours: 
+    contourPoints = []
+    for pointList in slice:
+        contourPoints.append([int(pointList[0]), int(pointList[1])])
+
+    contourPoints = np.array(contourPoints)
+
+    cv.fillPoly(image, [contourPoints], 1, 8)
+
+    #fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
+        
+    #axs[0,0].imshow(image, cmap = "gray")
+    #axs[0,0].set_title("Original Mask")
+
+    #plt.show()
+
+    #print(image)
+
+    return image
+
+
+
+
+
+
+
 
 
 

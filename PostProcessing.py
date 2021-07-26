@@ -338,6 +338,7 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
     maxZValue = max(contourZValues)
     minZValue = min(contourZValues)
 
+    #remove the top and bottom slices from slicesToFix as they need to be used to interpolate
     if round(minZValue,2) in slicesToFix: 
         slicesToFix.remove(round(minZValue,2))
     if round(maxZValue,2) in slicesToFix: 
@@ -394,11 +395,12 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
 
         for slice in contours:
             #remove the contour points for the interpolated slice
-            if round(slice[0][2],2) == zValue:
-                print(len(contours))
-                contours.remove(slice)
-                print(len(contours))
-                break  
+            if len(slice) > 0:
+                if round(slice[0][2],2) == zValue:
+                    print(len(contours))
+                    contours.remove(slice)
+                    print(len(contours))
+                    break  
         #add the interpolated contour points
         contours.append(interpolatedPointsList)
         print(len(contours))
@@ -426,19 +428,12 @@ def UnreasonableArea(contours, organ , path):
     for j, zValue in enumerate(zValueList):
         #create the list of contour points at the specified z value 
         pointsList = GetPointsAtZValue(contours, zValue)
-        #if there only two points, the area cannot not be found and is by default incorrect, add to the unreasonable area list
-        if len(pointsList) < 3:
-                unreasonableArea.append(zValue)
+      
+        points = np.array(pointsList)
 
-        else: 
-            points = np.array(pointsList)
-
-            #try to create the hull. If there are too few points that are too close together, add to the unreasonable area list
-            try: 
-                hull = ConvexHull(points)
-            except:
-                unreasonableArea.append(zValue)
-
+        #try to create the hull. If there are too few points that are too close together, add to the unreasonable area list
+        try: 
+            hull = ConvexHull(points)
             #find how many percent the z value is through the contour
             percent = int(((j+1)/len(zValueList))*100)
             area = hull.area
@@ -449,9 +444,8 @@ def UnreasonableArea(contours, organ , path):
                     if area > element[2] or area < element[3]:
                         unreasonableArea.append(zValue)
                     break
-
-    print("unreasonable area")
-    print(unreasonableArea)
+        except:
+            unreasonableArea.append(zValue)
 
     return unreasonableArea
 
@@ -481,12 +475,7 @@ def UnreasonableNumPoints(contours, organ, path):
                 if percent == element[0]:
                     if numPoints < element[3]*0.3:
                         unreasonableNumPoints.append(zValue)
-                        print(element[3])
-                        print(numPoints)
                     break
-
-    print("unreasonable num points")
-    print(unreasonableNumPoints)
 
     return unreasonableNumPoints
 
@@ -521,8 +510,6 @@ def MissingSlices(contours,patientName, path, sliceThickness):
             if zValue not in zValueList:
                 missingZValues.append(zValue)
 
-    print("missing z values")
-    print(missingZValues)
     return missingZValues
 
 
@@ -530,7 +517,8 @@ def GetZValues(contours):
     zValueList = []
 
     for slice in contours: 
-        zValueList.append(round(slice[0][2],2))
+        if len(slice) > 0:
+            zValueList.append(round(slice[0][2],2))
        
     return zValueList
 
@@ -539,10 +527,10 @@ def GetPointsAtZValue(contours, zValue):
     pointsList = []
 
     for slice in contours:
-        if round((slice[0][2]), 2) == zValue:
-            for point in slice:
-                pointsList.append([point[0], point[1]])
-            print(slice[0][2])
-            break
+        if len(slice) > 0:
+            if round((slice[0][2]), 2) == zValue:
+                for point in slice:
+                    pointsList.append([point[0], point[1]])
+                break
 
     return pointsList

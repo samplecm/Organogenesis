@@ -67,7 +67,6 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
             contours = PostProcessing.InterpolateSlices(contours, patientFileName, organ, path, sliceThickness)
-            #Test.ContoursToMasks(contours, patientName, path)
 
             for layer_idx in range(len(contours)):
                 if len(contours[layer_idx]) > 0:
@@ -109,7 +108,6 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
         contours = PostProcessing.InterpolateSlices(contours, patientFileName, organ, path, sliceThickness)
-        #Test.ContoursToMasks(contours, patientFileName, path)
 
         for layer_idx in range(len(contours)):
             if len(contours[layer_idx]) > 0:
@@ -199,7 +197,7 @@ def GetOriginalContours(organ, patientFileName, path):
                     existingContoursList.append(y)
                     existingContoursList.append(z)
 
-    return existingContoursList
+    return existingContours, existingContoursList
 
 
 
