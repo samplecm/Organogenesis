@@ -463,7 +463,7 @@ def UnreasonableNumPoints(contours, organ, path):
         #tends to interpolate weird near the boundariues so exclude them
         if percent < 4 or percent > 96:
             continue
-        #if the number of points is less than the minimum number of points for that percentage, add to the unresonable number of points list
+        #if the number of points is less than the minimum number of points for that percentage*factor, add to the unresonable number of points list
         for element in percentNumPointsStats:
                 if percent == element[0]:
                     if numPoints < element[3]*factor:

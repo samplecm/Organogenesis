@@ -18,9 +18,7 @@ from matplotlib import cm
 from scipy.spatial.distance import directed_hausdorff
 import math
 from scipy.spatial import ConvexHull
-from shapely.geometry import Point
-from shapely.geometry.polygon import Polygon
-from PIL import Image, ImageDraw
+
 
 
 def TestPlot(organ, path, threshold, modelType):
@@ -112,6 +110,7 @@ def GetMasks(organ, patientName, path, threshold, modelType):
     patientImages.sort()    
 
     predictions = [] #First put 2d masks into predictions list and then at the end stack into a 3d array
+    originalMasks = []
 
     for image in patientImages:
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
@@ -191,7 +190,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     falseNeg = []
     fScores = []
 
-    thresholds = np.linspace(0.05,0.6,8)
+    thresholds = np.linspace(0.05,0.9,11)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
@@ -378,7 +377,7 @@ def PlotPatientContours(contours, existingContours):
     for layer_idx in range(len(existingContours)):
         if len(existingContours[layer_idx]) > 0:
             for point_idx in range(len(existingContours[layer_idx])):
-                x = existingContours[layer_idx][point_idx][0]-200
+                x = existingContours[layer_idx][point_idx][0]-300
                 y = existingContours[layer_idx][point_idx][1]
                 z = existingContours[layer_idx][point_idx][2]
                 
@@ -617,39 +616,3 @@ def PercentStats(organ, path):
 
     with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points Stats.txt")), "wb") as fp:
         pickle.dump(percentNumPointsStats, fp) 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-    
-
-  
-
