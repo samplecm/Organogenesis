@@ -1,7 +1,9 @@
 import datetime
-from image_helper import get_contours_coords
+import os 
 from rtutils import ROIData, SOPClassUID
+from typing import List
 import numpy as np
+from pydicom import dcmread
 from pydicom.uid import generate_uid
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.sequence import Sequence
@@ -52,7 +54,7 @@ def add_required_elements_to_ds(ds: FileDataset):
     ds.is_little_endian = True
     ds.is_implicit_VR = True
     # Set values already defined in the file meta
-    ds.SOPClassUID = ds.file_meta.MediaStorageSOPClassUID
+    ds.SOPClassUID = ds.file_meta.MediaStorageSOPClassUID 
     ds.SOPInstanceUID = ds.file_meta.MediaStorageSOPInstanceUID
 
     ds.ApprovalStatus = 'UNAPPROVED'
@@ -169,8 +171,8 @@ def create_contour_sequence(roi_data: ROIData, series_data) -> Sequence:
 
 def create_contour(series_slice: Dataset, contour_data: np.ndarray) -> Dataset:
     contour_image = Dataset()
-    contour_image.ReferencedSOPClassUID = series_slice.file_meta.MediaStorageSOPClassUID
-    contour_image.ReferencedSOPInstanceUID = series_slice.file_meta.MediaStorageSOPInstanceUID
+    contour_image.ReferencedSOPClassUID = series_slice.file_meta.MediaStorageSOPClassUID 
+    contour_image.ReferencedSOPInstanceUID = series_slice.file_meta.MediaStorageSOPInstanceUID 
 
     # Contour Image Sequence
     contour_image_sequence = Sequence()
@@ -205,3 +207,46 @@ def get_contour_sequence_by_roi_number(ds, roi_number):
             return roi_contour.ContourSequence
 
     raise Exception(f"Referenced ROI number '{roi_number}' not found")
+
+def load_sorted_image_series(dicom_series_path: str):
+    """
+    File contains helper methods for loading / formatting DICOM images and contours
+    """
+
+    series_data = load_dcm_images_from_path(dicom_series_path)
+
+    if len(series_data) == 0:
+        raise Exception("No DICOM Images found in input path")
+
+    # Sort slices in ascending order
+    series_data.sort(key=lambda ds: ds.ImagePositionPatient[2], reverse=False)
+
+    return series_data
+
+
+def load_dcm_images_from_path(dicom_series_path: str) -> List[Dataset]:
+    series_data = []
+    for root, _, files in os.walk(dicom_series_path):
+        for file in files:
+            try:
+                ds = dcmread(os.path.join(root, file))
+                if hasattr(ds, 'pixel_array'):
+                    series_data.append(ds)
+
+            except Exception:
+                # Not a valid DICOM file
+                continue
+
+    return series_data
+
+def get_slice_contour_data(series_slice: Dataset, contour_sequence: Sequence):
+    slice_contour_data = []
+    
+    # Traverse through sequence data and get all contour data pertaining to the given slice
+    for contour in contour_sequence:
+        for contour_image in contour.ContourImageSequence:
+            if contour_image.ReferencedSOPInstanceUID == series_slice.SOPInstanceUID:
+                slice_contour_data.append(contour.ContourData)
+
+    return slice_contour_data
+

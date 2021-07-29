@@ -1,10 +1,8 @@
 from typing import List, Union
 import numpy as np
 from pydicom.dataset import FileDataset
-
 from rtutils import ROIData
-import ds_helper, image_helper
-
+import ds_helper
 
 class RTStruct:
     """
@@ -37,6 +35,7 @@ class RTStruct:
 
         self.validate_contour(contours)
         roi_number = len(self.ds.StructureSetROISequence) + 1
+        roi_number = self.validate_roiNumber(roi_number)
         roi_data = ROIData(
             contours,
             color,
@@ -58,6 +57,15 @@ class RTStruct:
                     f"Expected {len(self.series_data)}, got {len(contour)}")
 
         return True
+
+    def validate_roiNumber(self, roi_number):
+        existingROINumbers = []
+        for element in self.ds.ROIContourSequence:
+            existingROINumbers.append(int(element.ReferencedROINumber))
+        if roi_number in existingROINumbers:
+            roi_number = max(existingROINumbers) + 1
+
+        return roi_number
 
     def save(self, file_path: str):
         """

@@ -3,7 +3,7 @@ from pydicom.dataset import Dataset
 from pydicom.filereader import dcmread
 
 from rtutils import SOPClassUID
-import ds_helper, image_helper
+import ds_helper
 from rtstruct import RTStruct
 
 
@@ -18,7 +18,7 @@ class RTStructBuilder:
         Method to generate a new rt struct from a DICOM series
         """
 
-        series_data = image_helper.load_sorted_image_series(dicom_series_path)
+        series_data = ds_helper.load_sorted_image_series(dicom_series_path)
         ds = ds_helper.create_rtstruct_dataset(series_data)
         return RTStruct(series_data, ds)
 
@@ -28,7 +28,7 @@ class RTStructBuilder:
         Method to load an existing rt struct, given related DICOM series and existing rt struct
         """
 
-        series_data = image_helper.load_sorted_image_series(dicom_series_path)
+        series_data = ds_helper.load_sorted_image_series(dicom_series_path)
         ds = dcmread(rt_struct_path)
         RTStructBuilder.validate_rtstruct(ds)
         RTStructBuilder.validate_rtstruct_series_references(ds, series_data)

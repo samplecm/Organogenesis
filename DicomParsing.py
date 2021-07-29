@@ -197,7 +197,7 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                         else:
                             pointListy = np.array([x,y,z])   
                         numContourPoints+=1       
-                    contours[-1] = tempContour    
+                    contours[-1] = tempContour  
         #Right now I need the contour points in terms of the image pixel numbers so that they can be turned into an image for training:
         contourIndices = DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
         #Now need to make images of the same size as CTs, with contour masks
