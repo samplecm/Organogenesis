@@ -19,6 +19,23 @@ from fastDamerauLevenshtein import damerauLevenshtein
 #Want to have a function that checks for a structure in patients' structure sets, and obtains the contours
 #if preSorted = True, that means that they are already sorted lists indicating whether the contour is good or bad (no need to plot) 
 def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
+    """Processes the dicom file data and saves it. CT images, masks, and z values 
+       are saved for the training and validation data. 10% of patients with good contours 
+       are saved to the validation data set. CT images are saved for the testing data.
+       Contour bools (whether or not there is an existing contour for that slice) are saved
+       for all data types. 
+
+    Args:
+        filesFolder (str): the directory path to the folder with patient files
+        organ (str): the organ to get data for
+        preSorted(bool): True to use presorted good/bad/no contour lists, 
+            False to display contours for each patient and sort manually
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        save (bool): **what is this
+
+    """
+
     #get the list of patient folders
     patientFoldersRaw = sorted(os.listdir(filesFolder))
     #If the user has provided a path to patients files, then we don't want any of the subdirectory names created by the program to be included in this list, so filter them out 
@@ -315,16 +332,16 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                 if zSlice < 10:
                     sliceText = "0" + str(zSlice)
                 if preSorted == True: 
-                    if patientFolders[p] not in validationPatientsList:
-                        with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                        with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
-                            pickle.dump(contourOnPlane[zSlice], fp)
-                    else: 
-                        with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                        with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump(contourOnPlane[zSlice], fp) 
+                    #if patientFolders[p] not in validationPatientsList:
+                    #    with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                    #        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                    #    with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
+                    #        pickle.dump(contourOnPlane[zSlice], fp)
+                    #else: 
+                    with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                    with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                        pickle.dump(contourOnPlane[zSlice], fp) 
                 else: 
                     if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
                         with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
@@ -342,15 +359,22 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                 with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump(contourOnPlane[zSlice], fp)  
 
+def GetPredictionCTs(patientName, path):
+    """Processes CT images for a given patient from a dicom file and saves them
+       for the purpose of predicting. 
+     
+    Args:
+        patientName (str): the name of the patient folder to process data for
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
 
-        
-        
-def GetPredictionCTs(patientFileName, path):
+    """
+
     #This prepares data to be used for predicting and not training, so it is not necessary to supply contours corresponding to images
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
 
-    patientPath = "Patient_Files/" + patientFileName
+    patientPath = "Patient_Files/" + patientName
     #get the list of patient folders
     patientPath = os.path.join(path, patientPath)
     patientFolder = sorted(os.listdir(patientPath))
@@ -375,22 +399,38 @@ def GetPredictionCTs(patientFileName, path):
     for CTFile in patient_CTs:
         resizedArray = ImageUpsizer(np.array(dcmread(CTFile).pixel_array) , ssFactor)
         #Anything greater than 2700 Hounsfield units is likely artifact, so cap here.
-        if resizedArray.max() > 2500:
+        if resizedArray.max() > 2700:
             resizedArray = np.clip(resizedArray, -1000, 2700)
         resizedArray = NormalizeImage(resizedArray) 
         CTs.append([resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness])
     CTs.sort(key=lambda x:x[1][2]) #not necessarily in order, so sort according to z-slice.
 
-    with open(os.path.join(path, str("Predictions_Patients/" + patientFileName  + "_Processed.txt")), "wb") as fp:
+    with open(os.path.join(path, str("Predictions_Patients/" + patientName  + "_Processed.txt")), "wb") as fp:
         pickle.dump(CTs, fp)  
     return CTs 
 
-def GetDICOMContours(patientFileName, organ, path):
-#This prepares data to be used for predicting and not training, so it is not necessary to supply contours corresponding to images
+def GetDICOMContours(patientName, organ, path):
+    """Gets the contours of a given organ from a given patient 
+       from a dicom file. 
+     
+    Args:
+        patientName (str): the name of the patient folder to 
+            get the contour of
+        organ (str) the organ to get contours of
+        path (str): the path to the directory containing 
+        organogenesis folders (Models, Processed_Data, etc.)
+
+    Returns: 
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points (x, y, and z values) 
+            at a specific z value
+
+    """
+
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
 
-    patientPath = "Patient_Files/" + patientFileName
+    patientPath = "Patient_Files/" + patientName
     #get the list of patient folders
     patientPath = os.path.join(path, patientPath)
     patientFolder = sorted(os.listdir(patientPath))
@@ -427,7 +467,7 @@ def GetDICOMContours(patientFileName, organ, path):
                     numContourPoints+=1       
                 contours[-1] = tempContour            
 
-    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName  + "_ExistingContours.txt")), "wb") as fp:
+    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName  + "_ExistingContours.txt")), "wb") as fp:
         pickle.dump(contours, fp)  
     return contours
                 
@@ -435,6 +475,23 @@ def GetDICOMContours(patientFileName, organ, path):
 
 
 def FindStructure(metadata, organ, invalidStructures = []):
+    """Finds the matching structure to a given organ in a patient's
+       dicom file metadata. 
+     
+    Args:
+        metadata (DataElement): the data contained in the 
+            StructureSetROISequence of the patient's dicom file
+        organ (str) the organ to find the matching structure for
+        invaidStructures (list): a list of strctures that the matching 
+            structure cannot be, defaults to an empty list
+
+    Returns: 
+        str, int: the matching structure's name in the metadata, the 
+            matching structure's ROI number in the metadata. Returns "", 
+            1111 if no matching structure is found in the metadata
+        
+    """
+
     #Here we take the string for the desired structure (organ) and find the matching structure for each patient. 
     #The algorithm is to first make sure that the organ has a substring matching the ROI with at least 3 characters,
     #then out of the remaining possiblities, find top 3 closest fits with damerau levenshtein algorithm, then check to make sure that they are allowed to match according to rules defined in AllowedToMatch(). There should then ideally
@@ -479,6 +536,19 @@ def FindStructure(metadata, organ, invalidStructures = []):
         return "", 1111 #error code for unfound match.    
 
 def AllowedToMatch(s1, s2):
+    """Determines whether or not s1 and s2 are allowed to match 
+       based on if they both contain the correct substrings.
+     
+    Args:
+        s1 (str): first string to determine match
+        s2 (str): second string to determine match
+
+    Returns: 
+        allowed (bool): True if the strings are allowed to match, 
+            false otherwise
+        
+    """
+
     s1 = s1.lower()
     s2 = s2.lower()
     allowed = True
@@ -511,7 +581,7 @@ def AllowedToMatch(s1, s2):
         if num == 1:
             allowed = False        
 
-    #Cant have left and no l in other, or rightt and no r
+    #Cant have left and no l in other, or right and no r
     if "left" in s1:
         if "l" not in s2:
             allowed = False      
@@ -536,10 +606,35 @@ def AllowedToMatch(s1, s2):
 
 
 def StringDistance(s1, s2):
+    """ **
+     
+    Args:
+        s1 (str): 
+        s2 (str): 
+
+    Returns: 
+       **
+        
+    """
+
     return damerauLevenshtein(s1,s2,similarity=False)
 
     return d[lenstr1-1,lenstr2-1]
+
 def LongestSubstring(s1,s2):
+    """Finds the length og the longest substring that is in 
+       both s1 and s2.
+     
+    Args:
+        s1 (str): the first string to find the longest substring in
+        s2 (str): the second string to find the longest substring in
+
+    Returns: 
+        longest (int): the length of the longets substring that is in 
+            s1 and s2
+        
+    """
+
     m = len(s1)
     n = len(s2)
     counter = [[0]*(n+1) for x in range(m+1)]
@@ -560,6 +655,16 @@ def LongestSubstring(s1,s2):
 
 
 def NormalizeImage(image):
+    """Normalizes an image between 0 and 1.  
+
+    Args:
+        image (ndarray): the image to be normalized 
+
+    Returns:
+        ndarray: the normalized image
+
+    """
+
     #if its entirely ones or entirely zeros, can just return it as is. 
     if np.amin(image) == 1 and np.amax(image) == 1:
         return image
@@ -570,6 +675,17 @@ def NormalizeImage(image):
     return (image - amin) / ptp
 
 def ImageUpsizer(array, factor):
+    """Supersizes an array by the factor given.   
+
+    Args:
+        array (ndarray): an array to be supersized
+        factor (int): the amount to supersize the array by 
+
+    Returns:
+        newArray (ndarray): the supersized array
+
+    """
+
     #Take an array and supersize it by the factor given
     xLen, yLen = array.shape
     newArray = np.zeros((factor * xLen, factor * yLen))
@@ -594,6 +710,26 @@ def ImageUpsizer(array, factor):
     return newArray
 
 def DICOM_to_Image_Coordinates(IPP, pixelSpacing, contours):
+    """Converts the coordinates in contours from real world (dicom)
+       coordinates to pixel coordinates. 
+
+    Args:
+        IPP (list): image position patient, the real world (dicom) 
+            coordinate of the top left hand corner of the CT image
+            [x,y,z]
+        pixelSpacing (list): the real world (dicom) distance between 
+            the centre of each pixel [x distance, y distance] in mm 
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points at a specific z value 
+            [x,y,z] in real world (dicom) coordinates
+
+    Returns:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points at a specific z value 
+            [x,y,z] in  pixel coordinates
+
+    """
+
     #Need to go throug each contour point and convert x and y values to integer values indicating image indices
     for contour in contours:
         for point in contour:
@@ -602,7 +738,31 @@ def DICOM_to_Image_Coordinates(IPP, pixelSpacing, contours):
     return contours        
 
 def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness):
-    #Take the contours defined by pixel values in the 512x512 array and convert these into cartesian coordinates as in the dicom system
+    """Converts the coordinates in contours from pixel coordinates
+       to real world (dicom) coordinates. 
+
+    Args:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points at a specific z value 
+            [x,y] in pixel coordinates
+        ipp (list): image position patient, the real world (dicom) 
+            coordinate of the top left hand corner of the CT image
+            [x,y,z]
+        zValues (list): a list of the z values for the slices in contours
+        pixelSpacing (list): the real world (dicom) distance between 
+            the centre of each pixel [x distance, y distance] in mm 
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points at a specific z value 
+            [x,y,z] in real world (dicom) coordinates
+        sliceThickness (float): the distance between each CT slice in mm
+
+    Returns:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points at a specific z value 
+            [x,y,z] in real world (dicom) coordinates
+
+    """
+
     newContours = []
     for layer in range(len(contours)): 
         newContours.append([])
@@ -614,8 +774,9 @@ def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickne
                 newContours[-1].append([x,y,z])
     return newContours        
 
-    return contours
 if __name__ == "__main__":
     print("Main Method of DicomParsing.py")
     patientsPath = 'Patient_Files/'
     GetTrainingData(patientsPath, "Spinal Cord", save=True)
+
+    

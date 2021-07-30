@@ -15,8 +15,38 @@ import Test
 
 
 
-def GetContours(organ, patientFileName, path, threshold, modelType, withReal = True, tryLoad=True, plot=True):
- 
+def GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad=True, plot=True):
+    """Uses a pre trained model to predict contours for a given organ. Saves 
+       the contours to the Predictions_Patients folder in a binary file. 
+
+    Args:
+        organ (str): the organ to predict contours for
+        patientName (str): the name of the patient folder to predict contours for
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        threshold (float) : the cutoff for deciding if a pixel is 
+            an organ (assigned a 1) or not (assigned a 0)
+        modelType (str): the type of model
+        withReal (bool): True to get exisiting contours from dicom file, 
+            defaults to True
+        tryLoad (bool): True to try to load previously processed contours to 
+            save time, defaults to True
+        plot (bool) True to plot predicted contours, defaults to True
+
+    Returns:
+        contoursList (list): list of contour points from the 
+            predicted contours
+        existingContoursList (list): list of contour points from the 
+            existing contours
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points [x,y]
+            at a specific z value
+        existingcontours (list): a list of lists. Each item is a list 
+            of the existing contour points [x,y]
+            at a specific z value
+
+    """
+
     #with real loads pre=existing DICOM roi to compare the prediction with 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute() 
@@ -33,13 +63,13 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
     existingContoursList = []
     #Make a list for all the contour images
     try: 
-        CTs = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + patientFileName + "_Processed.txt")), 'rb'))  
+        CTs = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + patientName + "_Processed.txt")), 'rb'))  
     except:
 
-        CTs = DicomParsing.GetPredictionCTs(patientFileName, path)
+        CTs = DicomParsing.GetPredictionCTs(patientName, path)
     if tryLoad:
         try:
-            contourImages, contours = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")),'rb'))      
+            contourImages, contours = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName + "_predictedContours.txt")),'rb'))      
         except: 
             
             contours = []
@@ -77,11 +107,8 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
                         contoursList.append(x)
                         contoursList.append(y)
                         contoursList.append(z)
-            with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
-                pickle.dump([contourImages, contours], fp)       
-                
-
-
+            with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName + "_predictedContours.txt")), "wb") as fp:
+                pickle.dump([contourImages, contours], fp)           
     else:
         contours = []
         zValues = [] #keep track of z position to add to contours after
@@ -119,14 +146,14 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
                     contoursList.append(y)
                     contoursList.append(z)
 
-    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
+        with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName + "_predictedContours.txt")), "wb") as fp:
             pickle.dump([contourImages, contours], fp)      
 
     existingContours = []
     
     if withReal:
         try:
-            existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))  
+            existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName + "_ExistingContours.txt")), "rb"))  
             for layer_idx in range(len(existingContours)):
                 if len(existingContours[layer_idx]) > 0:
                     for point_idx in range(len(existingContours[layer_idx])):
@@ -137,7 +164,7 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
                         existingContoursList.append(y)
                         existingContoursList.append(z)
         except: 
-            existingContours = DicomParsing.GetDICOMContours(patientFileName, organ, path)
+            existingContours = DicomParsing.GetDICOMContours(patientName, organ, path)
             for layer_idx in range(len(existingContours)):
                 if len(existingContours[layer_idx]) > 0:
                     for point_idx in range(len(existingContours[layer_idx])):

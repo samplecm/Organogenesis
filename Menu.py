@@ -33,9 +33,6 @@ functionOps = [
     "FScore"
 ]
 
-
-
-
 def main():
     print("Welcome to Organogenesis")
     print("------------------")
@@ -93,7 +90,7 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
+        Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=True, modelType = "MultiResUNet")
         #Test.Best_Threshold(OARs[chosenOAR],400)
 
 
@@ -102,9 +99,9 @@ def main():
         Predict.GetMultipleContours(chosenOARs,"P85",path = None, modelType = "multiresunet", thresholdList = [0.5], withReal=True, tryLoad=False) 
         
     elif task == 3:
-        Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "UNet", onlyMasks=False, onlyBackground=False)
+        Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "multiresunet", onlyMasks=False, onlyBackground=False)
     elif task == 4:
-        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.2, path = None, modelType = "unet")    
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.2, path = None, modelType = "multiresunet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:
@@ -133,7 +130,7 @@ if __name__ == "__main__":
     #Training parameters:    
     parser.add_argument("--lr", help="Specify the learning rate desired for model training.", default=None, type=float)
     parser.add_argument("--epochs", help="Specify the number of epochs to train the model for", default=None, type=int)
-    parser.add_argument("--processData", help="True or False. True if patient DICOM data has already been processed into training/validation/test folders", default=False, action='store_true')
+    parser.add_argument("--processData", help="True or False. True if patient DICOM data has not already been processed into training/validation/test folders", default=False, action='store_true')
     parser.add_argument("--loadModel", help="True/False. True if a pre-existing model is to be loaded for continuing of training.", default=False, action='store_true')
     parser.add_argument("--dataPath", help="If data is not prepared in patient_files folder, specify the path to the directory containing all patient directories.",type=str, default=None)
     parser.add_argument("--preSorted", help="Specify whether or not patient data has already been sorted by \"good\" and \"bad\" contours", default=False, action='store_true')
