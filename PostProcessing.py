@@ -10,6 +10,8 @@ import pathlib
 import random
 import pickle
 import Test
+import DicomParsing
+from scipy.spatial import ConvexHull
 
 
 def Process(prediction, threshold):
@@ -185,7 +187,7 @@ def InterpolateContour(contours1, contours2, distance):
     newContour = []
     for point in contours1:
         point2 = ClosestPoint(point, contours2) #closest point in xy plane in contours2 list
-        interpolatedPoint = InterpolatePoint(point, point2, distance) #linear interp between point1, point2
+        interpolatedPoint = InterpolatePoint(point, point2, totalDistance = distance) #linear interp between point1, point2
         newContour.append(interpolatedPoint)
     return newContour
     #for idx_1 in range(len(contours1)):
@@ -205,7 +207,7 @@ def ClosestPoint(point, contours):
             closestPoint = point2 
             minDist = diff
     return closestPoint   
-def InterpolatePoint(point1, point2, distance):
+def InterpolatePoint(point1, point2, totalDistance, distance = 1):
     #linear interpolation between point1 and point2, at a distance of 1 from point1 and distance-1 from point 2
     #first interpolate in x direction.
     
@@ -215,12 +217,12 @@ def InterpolatePoint(point1, point2, distance):
     y2 = point2[1]
 
 
-    dx_dz = (x2-x1) / distance
-    dy_dz = (y2-y1) / distance
+    dx_dz = (x2-x1) / totalDistance
+    dy_dz = (y2-y1) / totalDistance
 
     #get new point which is a distance of 1 away from point1
-    x = x1 + dx_dz * 1
-    y = y1 + dy_dz * 1
+    x = x1 + dx_dz * distance
+    y = y1 + dy_dz * distance
 
     return [x,y]
 
@@ -324,8 +326,204 @@ def Infer_From_ONNX(organ, patient):
         # axs[2,1].imshow(prediction[0,1, :,:], cmap = "gray")
         # axs[2,1].set_title("Predicted Background")
         plt.show()
-        
 
 
+def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
+
+    slicesToFix = list(set(UnreasonableArea(contours, organ, path) + MissingSlices(contours, patientName, path, sliceThickness) + UnreasonableNumPoints(contours, organ, path)))
+
+    contourZValues = GetZValues(contours)
+    maxZValue = max(contourZValues)
+    minZValue = min(contourZValues)
+
+    for zValue in slicesToFix:
+        #find the z values of the closest slices with reasonable areas 
+        zValueAbove = zValue
+        zValueBelow = zValue 
+        i = 1
+        while zValueBelow == zValue: 
+            if zValue - i*sliceThickness not in slicesToFix:
+                zValueBelow = zValue - i*sliceThickness
+                distanceBelow = i*sliceThickness
+            i += 1
+
+        i = 1
+        while zValueAbove == zValue: 
+            if zValue + i*sliceThickness not in slicesToFix:
+                zValueAbove = zValue + i*sliceThickness
+                distanceAbove = i*sliceThickness 
+            i += 1
+
+        #don't interpolate if the closest slices were out of the z value range
+        if zValueAbove > maxZValue or zValueBelow < minZValue: 
+            continue
+
+        pointsListAbove = GetPointsAtZValue(contours, zValueAbove)
+        pointsListBelow = GetPointsAtZValue(contours, zValueBelow)
+
+        interpolatedPointsList = []
+
+        if len(pointsListAbove) > len(pointsListBelow): #choose the slice with the largest number of contour points
+            for pointAbove in pointsListAbove:
+                pointBelow = ClosestPoint(pointAbove, pointsListBelow) 
+                interpolatedPoint = InterpolatePoint(pointAbove, pointBelow, distanceBelow+distanceAbove, distanceAbove) 
+                interpolatedPointsList.append([interpolatedPoint[0], interpolatedPoint[1], zValue])
+        else: 
+            for pointBelow in pointsListBelow:
+                pointAbove = ClosestPoint(pointBelow, pointsListAbove) 
+                interpolatedPoint = InterpolatePoint(pointBelow, pointAbove, distanceBelow+distanceAbove, distanceBelow) 
+                interpolatedPointsList.append([interpolatedPoint[0], interpolatedPoint[1], zValue])
+
+        for slice in contours:
+            #remove the contour points for the interpolated slice
+            if len(slice) > 0:
+                if round(slice[0][2],2) == zValue:
+                    contours.remove(slice)
+                    break  
+        #add the interpolated contour points
+        contours.append(interpolatedPointsList)
+
+    return contours
+
+def UnreasonableArea(contours, organ , path):
+     #retuns a list of the z values for CT slices with an unreasonable predicted contour area 
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    #get the z values in the contour
+    zValueList = GetZValues(contours)
+
+    #try to get the percent area stats if they have already been found 
+    try:     
+        percentAreaStats = pickle.load(open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area Stats.txt")),'rb'))
+    except: 
+        Test.PercentStats(organ, path)
+        percentAreaStats = pickle.load(open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area Stats.txt")),'rb'))
+  
+    unreasonableArea = []
+
+    for j, zValue in enumerate(zValueList):
+        #create the list of contour points at the specified z value 
+        pointsList = GetPointsAtZValue(contours, zValue)
+      
+        points = np.array(pointsList)
+
+        #try to create the hull. If there are too few points that are too close together, add to the unreasonable area list
+        try: 
+            hull = ConvexHull(points)
+            #find how many percent the z value is through the contour
+            percent = int(((j+1)/len(zValueList))*100)
+            #tends to interpolate weird near the boundariues so exclude them
+            if percent < 4 or percent > 96:
+                continue
+            area = hull.area
+            #if the area is above the max area or below the min area, add the z value to the unreasonable area list
+            for element in percentAreaStats:
+                if percent == element[0]:
+                    if area > element[2] or area < element[3]:
+                        unreasonableArea.append(zValue)
+                    break
+        except:
+            unreasonableArea.append(zValue)
+
+    return unreasonableArea
+
+def UnreasonableNumPoints(contours, organ, path):
+    #returns a list of z values for the slices with an unreasonable number of contour points 
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    zValueList = GetZValues(contours)
+
+    #get the percent number of points stats if they haven't already been found
+    try:     
+        percentNumPointsStats = pickle.load(open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area Stats.txt")),'rb'))
+    except: 
+        Test.PercentStats(organ, path)
+        percentNumPointsStats = pickle.load(open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points Stats.txt")),'rb'))
 
 
+    #different factors work better for different organs, therefore choose the right one
+    factorDictionary = {"body":0.4,"spinal cord":0.2, "oral cavity":0.2, "left parotid": 0.2, "right parotid":0.2}
+
+    try:
+        factor = factorDictionary[organ.lower()]
+    except KeyError:
+        #if there is no factor specified for the organ, set to default of 0.2
+        factor = 0.2
+
+    unreasonableNumPoints = []
+
+    for j,  zValue in enumerate(zValueList): 
+        pointsList = GetPointsAtZValue(contours, zValue)
+        numPoints = len(pointsList)
+        #find how many percent the z value is through the contour
+        percent = int(((j+1)/len(zValueList))*100)
+        #tends to interpolate weird near the boundariues so exclude them
+        if percent < 4 or percent > 96:
+            continue
+        #if the number of points is less than the minimum number of points for that percentage*factor, add to the unresonable number of points list
+        for element in percentNumPointsStats:
+                if percent == element[0]:
+                    if numPoints < element[3]*factor:
+                        unreasonableNumPoints.append(zValue)
+                    break
+
+    return unreasonableNumPoints
+
+
+def MissingSlices(contours,patientName, path, sliceThickness):
+    #returns a list of the z values for slices with missing contours 
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    zValueList = GetZValues(contours)
+
+    startZValue = min(zValueList)
+    stopZValue = max(zValueList)
+
+    expectedZValueList = []
+
+    i = startZValue 
+
+    while i <= stopZValue: 
+        expectedZValueList.append(i)
+        i += sliceThickness 
+
+    missingZValues = []
+
+    #if the z value list of the predicted contour is complete then just return an empty list
+    if zValueList == expectedZValueList:
+        return missingZValues
+    #add the missing z values to the list
+    else: 
+        for zValue in expectedZValueList:
+            if zValue not in zValueList:
+                missingZValues.append(zValue)
+
+    return missingZValues
+
+
+def GetZValues(contours):
+    zValueList = []
+
+    for slice in contours: 
+        if len(slice) > 0:
+            zValueList.append(round(slice[0][2],2))
+       
+    return zValueList
+
+def GetPointsAtZValue(contours, zValue): 
+    #returns a list of the points at a given z value in a contour 
+    pointsList = []
+
+    for slice in contours:
+        if len(slice) > 0:
+            if round((slice[0][2]), 2) == zValue:
+                for point in slice:
+                    pointsList.append([point[0], point[1]])
+                break
+
+    return pointsList

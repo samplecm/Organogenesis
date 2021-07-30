@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import Model
 import Predict
+import DicomParsing
 import torch
 import torch.nn as nn
 import pickle
@@ -16,6 +17,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from scipy.spatial.distance import directed_hausdorff
 import math
+from scipy.spatial import ConvexHull
+
 
 
 def TestPlot(organ, path, threshold, modelType):
@@ -100,6 +103,7 @@ def GetMasks(organ, patientName, path, threshold, modelType):
     filesRange = list(range(len(dataFiles)))
 
     patientImages = []
+
     for d in filesRange: #First get the files for the patientName given
         if patientName in dataFiles[d]:
             patientImages.append(dataFiles[d])
@@ -107,6 +111,7 @@ def GetMasks(organ, patientName, path, threshold, modelType):
 
     predictions = [] #First put 2d masks into predictions list and then at the end stack into a 3d array
     originalMasks = []
+
     for image in patientImages:
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))[0][:]
@@ -185,7 +190,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     falseNeg = []
     fScores = []
 
-    thresholds = np.linspace(0.05,0.6,8)
+    thresholds = np.linspace(0.05,0.9,11)
     
     for thres in thresholds:
         print("Checking Threshold: %0.3f"%(thres))
@@ -372,7 +377,7 @@ def PlotPatientContours(contours, existingContours):
     for layer_idx in range(len(existingContours)):
         if len(existingContours[layer_idx]) > 0:
             for point_idx in range(len(existingContours[layer_idx])):
-                x = existingContours[layer_idx][point_idx][0]-200
+                x = existingContours[layer_idx][point_idx][0]-300
                 y = existingContours[layer_idx][point_idx][1]
                 z = existingContours[layer_idx][point_idx][2]
                 
@@ -448,7 +453,7 @@ def FScore(organ, path, threshold, modelType):
                             FP += 1
                     elif y[x_idx,y_idx] == 1:     
                         FN += 1           
-        print("Finished " + str(d) + " out of " + str(len(dataFiles)) + " contours...")                     
+        print("Finished " + str(d) + " out of " + str(1000) + " contours...")                     
     totalPoints = d * xLen * yLen                    
     recall = TP / (TP + FN)
     precision = TP / (TP + FP)
@@ -531,14 +536,83 @@ def GetEvalData(organ, path, threshold, modelType):
 
     return F_Score, recall, precision, accuracy, haussdorffDistance
 
+def PercentStats(organ, path):
 
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()  
 
+    #get the patient list from the sorted contour lists
+    patientList = pickle.load(open(os.path.join(path, str("Processed_Data/Sorted Contour Lists/" + organ + " Good Contours.txt")), 'rb')) 
 
+    percentAreaList = []
+    percentNumPointsList = []
 
+    for patientCount, patientName in enumerate(patientList): 
+        #get the existing contours for each patient
+        contourData = Predict.GetOriginalContours(organ, patientName, path)
+        contour = contourData[0]
+        contourList = contourData[1]
+        contourArray = np.array(contourList)
 
+        #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+        contourArray = contourArray.reshape(int(contourArray.shape[0]/3), 3)
 
+        #get the z values in the contour
+        zValueList = PostProcessing.GetZValues(contour)
 
-    
+        for j, zValue in enumerate(zValueList):
+            #create the list of contour points at the specified z value 
+            pointsList = []
+            for i in range(contourArray.shape[0]):
+                if (zValue == contourArray[i,2]):
+                    pointsList.append([contourArray[i,0], contourArray[i,1]])
+            points = np.array(pointsList)
+            numPoints = len(pointsList)
 
-  
+            #create the hull
+            hull = ConvexHull(points)
 
+            #find how many percent the z value is through the contour
+            percent = int(((j+1)/len(zValueList))*100)
+
+            #append the percent through the contour and the area of the contour to the list 
+            percentAreaList.append([percent, hull.area])
+            percentNumPointsList.append([percent, numPoints])
+
+        print("Finished " + str(patientCount + 1) + " out of " + str(len(patientList)) + " patients")
+
+    with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area List.txt")), "wb") as fp:
+        pickle.dump(percentAreaList, fp)  
+     
+    with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points List.txt")), "wb") as fp:
+        pickle.dump(percentNumPointsList, fp)  
+
+    percentAreaStats = []
+    percentNumPointsStats = []
+
+    for percentIndex in range(101): 
+        areaList = []
+        numPointsList = []
+        for percentArea in percentAreaList:
+            if percentArea[0] == percentIndex:
+                areaList.append(percentArea[1])
+        if len(areaList) > 0:
+            averageArea = sum(areaList)/(len(areaList))
+            maxArea = max(areaList)
+            minArea = min(areaList)
+            percentAreaStats.append([percentIndex, averageArea, maxArea, minArea])
+
+        for percentNumPoints in percentNumPointsList:
+            if percentNumPoints[0] == percentIndex: 
+                numPointsList.append(percentNumPoints[1])
+        if len(numPointsList) > 0:
+            averageNumPoints = sum(numPointsList)/len(numPointsList)
+            minNumPoints = min(numPointsList)
+            maxNumPoints = max(numPointsList)
+            percentNumPointsStats.append([percentIndex, averageNumPoints, maxNumPoints, minNumPoints])
+
+    with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Area Stats.txt")), "wb") as fp:
+        pickle.dump(percentAreaStats, fp) 
+
+    with open(os.path.join(path, str("Processed_Data/Area Stats/" + organ + " Percent Points Stats.txt")), "wb") as fp:
+        pickle.dump(percentNumPointsStats, fp) 

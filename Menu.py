@@ -99,7 +99,7 @@ def main():
 
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"P84",path = None, modelType = "UNet", thresholdList = [0.7, 0.12, 0.1], withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"P85",path = None, modelType = "multiresunet", thresholdList = [0.5], withReal=True, tryLoad=False) 
         
     elif task == 3:
         Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "UNet", onlyMasks=False, onlyBackground=False)
@@ -112,8 +112,9 @@ def main():
         #import numpy as np
         #print(np.amax(y))
         ##print(np.amax(array))
-        Test.TestPlot(chosenOARs[0], path=None, threshold=0.7, modelType = "UNet") 
-       
+        #Test.TestPlot(chosenOARs[0], path=None, threshold=0.7, modelType = "UNet") 
+        Test.PercentStats(chosenOARs[0], path = None)
+
 
 
 
