@@ -12,7 +12,7 @@ from operator import itemgetter
 import matplotlib.pyplot as plt
 import Preprocessing
 import open3d as o3d
-
+import random
 from fastDamerauLevenshtein import damerauLevenshtein
 
     
@@ -57,7 +57,16 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                 structsMeta = dcmread(structFile).data_element("ROIContourSequence")
                 structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
                 patientStructuresDict[str(patientFolders[p])] =  [structure, structureROINum]
-        
+
+        validationPatientsList = []
+
+        validationPatientsListLength = int(len(goodContoursList)*0.1)
+
+        for i in range(validationPatientsListLength):
+            patientChoice = random.choice(goodContoursList)
+            validationPatientsList.append(patientChoice)
+            goodContoursList.remove(patientChoice)
+
         with open(os.path.join(path, "Processed_Data/Sorted Contour Lists/" + organ + " Bad or No Contours.txt"), "rb") as fp:
             unmatchedPatientsList = pickle.load(fp)
 
@@ -203,7 +212,7 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
             #Now need to add the contour polygon mask to this image, if one exists on the current layer
             #loop over contours to check if z-value matches current CT.
             for contour in contourIndices:
-                if int(contour[0][2]*100) == int(CT[1]*100):    #if the contour is on the current slice (match to 2 decimals)
+                if int(round(contour[0][2], 2)*100) == int(round(CT[1], 2)*100):   #if the contour is on the current slice (match to 2 decimals)
                     contourOnPlane[idx] = 1
                     contourImage = Image.new('L', (xLen, yLen), 0 )#np.zeros((xLen, yLen))
                     backgroundImage = Image.new('L', (xLen, yLen), 1 )#np.zeros((xLen, yLen))
@@ -241,9 +250,11 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
         testImagePath = "Processed_Data/" + organ + "_Test/TestData_" + patientFolders[p] 
         testContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
         combinedData = np.zeros((2,len(CTs),xLen,yLen))
+        slice_ZVals = [] #For storing the z value of CT slices
         for zSlice in range(len(CTs)):
             combinedData[0,zSlice,:,:] = CTs[zSlice][0]
             combinedData[1,zSlice,:,:] = contourImages[zSlice]
+            slice_ZVals.append(CTs[zSlice][1]) #Add z value for the slice
             #combinedData[2,zSlice,:,:] = backgroundImages[zSlice]
         
         #Now also get the contour for plotting
@@ -303,19 +314,31 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
             if save == True:               
                 if zSlice < 10:
                     sliceText = "0" + str(zSlice)
-                if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
-                    with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump(combinedData[:,zSlice,:,:], fp)         
-                    with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
-                        pickle.dump(contourOnPlane[zSlice], fp)          
-                else:
-                    with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump(combinedData[:,zSlice,:,:], fp)         
-                    with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump(contourOnPlane[zSlice], fp)     
+                if preSorted == True: 
+                    if patientFolders[p] not in validationPatientsList:
+                        with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                        with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
+                            pickle.dump(contourOnPlane[zSlice], fp)
+                    else: 
+                        with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                        with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump(contourOnPlane[zSlice], fp) 
+                else: 
+                    if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
+                        with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                        with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
+                            pickle.dump(contourOnPlane[zSlice], fp)          
+                    else:
+                        with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                        with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump(contourOnPlane[zSlice], fp)     
             else:
                 with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump(combinedData[:,zSlice,:,:], fp)         
+                        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
                 with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump(contourOnPlane[zSlice], fp)  
 
@@ -355,7 +378,7 @@ def GetPredictionCTs(patientFileName, path):
         if resizedArray.max() > 2500:
             resizedArray = np.clip(resizedArray, -1000, 2700)
         resizedArray = NormalizeImage(resizedArray) 
-        CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness])
+        CTs.append([resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness])
     CTs.sort(key=lambda x:x[1][2]) #not necessarily in order, so sort according to z-slice.
 
     with open(os.path.join(path, str("Predictions_Patients/" + patientFileName  + "_Processed.txt")), "wb") as fp:
@@ -403,11 +426,7 @@ def GetDICOMContours(patientFileName, organ, path):
                         pointListy = np.array([x,y,z])   
                     numContourPoints+=1       
                 contours[-1] = tempContour            
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> 4b071f93e9d5eaa11493791bf278e98c2064cbe2
     with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName  + "_ExistingContours.txt")), "wb") as fp:
         pickle.dump(contours, fp)  
     return contours
@@ -595,11 +614,8 @@ def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickne
                 newContours[-1].append([x,y,z])
     return newContours        
 
-
     return contours
 if __name__ == "__main__":
     print("Main Method of DicomParsing.py")
     patientsPath = 'Patient_Files/'
     GetTrainingData(patientsPath, "Spinal Cord", save=True)
-
-    

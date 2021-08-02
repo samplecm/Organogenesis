@@ -15,15 +15,18 @@ import Test
 
 
 
-def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoad=True, plot=True):
+def GetContours(organ, patientFileName, path, threshold, modelType, withReal = True, tryLoad=True, plot=True):
  
     #with real loads pre=existing DICOM roi to compare the prediction with 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute() 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for predicting: " + device.type)
-    model = Model.UNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
     model.eval()
     contoursList = [] #The 1d contours list to be returned
@@ -63,6 +66,8 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
             contours = PostProcessing.FixContours(contours)  
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+            contours = PostProcessing.InterpolateSlices(contours, patientFileName, organ, path, sliceThickness)
+
             for layer_idx in range(len(contours)):
                 if len(contours[layer_idx]) > 0:
                     for point_idx in range(len(contours[layer_idx])):
@@ -73,7 +78,10 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
                         contoursList.append(y)
                         contoursList.append(z)
             with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
-                pickle.dump([contourImages, contours], fp)           
+                pickle.dump([contourImages, contours], fp)       
+                
+
+
     else:
         contours = []
         zValues = [] #keep track of z position to add to contours after
@@ -99,6 +107,7 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
         contours = PostProcessing.FixContours(contours)  
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+        contours = PostProcessing.InterpolateSlices(contours, patientFileName, organ, path, sliceThickness)
 
         for layer_idx in range(len(contours)):
             if len(contours[layer_idx]) > 0:
@@ -110,10 +119,7 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
                     contoursList.append(y)
                     contoursList.append(z)
 
-
-
-
-        with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
+    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
             pickle.dump([contourImages, contours], fp)      
 
     existingContours = []
@@ -141,9 +147,59 @@ def GetContours(organ, patientFileName, path, threshold, withReal = True, tryLoa
                         existingContoursList.append(x)
                         existingContoursList.append(y)
                         existingContoursList.append(z)
+
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
-    return contoursList, existingContoursList    
+    return contoursList, existingContoursList, contours, existingContours     
+
+def GetMultipleContours(organList, patientFileName, path, thresholdList, modelType, withReal = True, tryLoad=True, plot=True): 
+    contours = []
+    existingContours = []
+
+    for i, organ in enumerate(organList): 
+
+        combinedContours = GetContours(organ,patientFileName,path, modelType = modelType, threshold = thresholdList[i], withReal=True, tryLoad=False, plot = False) 
+        contours = contours + combinedContours[2]
+        existingContours = existingContours + combinedContours[3]
+
+    Test.PlotPatientContours(contours, existingContours)
+
+    return contours, existingContours
+
+def GetOriginalContours(organ, patientFileName, path):
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    existingContours = [] 
+    existingContoursList = []
+
+    try:
+        existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))  
+        for layer_idx in range(len(existingContours)):
+            if len(existingContours[layer_idx]) > 0:
+                for point_idx in range(len(existingContours[layer_idx])):
+                    x = existingContours[layer_idx][point_idx][0]
+                    y = existingContours[layer_idx][point_idx][1]
+                    z = existingContours[layer_idx][point_idx][2]     
+                    existingContoursList.append(x)
+                    existingContoursList.append(y)
+                    existingContoursList.append(z)
+    except: 
+        existingContours = DicomParsing.GetDICOMContours(patientFileName, organ, path)
+        for layer_idx in range(len(existingContours)):
+            if len(existingContours[layer_idx]) > 0:
+                for point_idx in range(len(existingContours[layer_idx])):
+                    x = existingContours[layer_idx][point_idx][0]
+                    y = existingContours[layer_idx][point_idx][1]
+                    z = existingContours[layer_idx][point_idx][2]
+                    existingContoursList.append(x)
+                    existingContoursList.append(y)
+                    existingContoursList.append(z)
+
+    return existingContours, existingContoursList
+
+
 
 
 
