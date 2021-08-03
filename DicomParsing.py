@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import Preprocessing
 import open3d as o3d
 import random
-
 from fastDamerauLevenshtein import damerauLevenshtein
 
     
@@ -618,11 +617,8 @@ def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickne
                 newContours[-1].append([x,y,z])
     return newContours        
 
-
     return contours
 if __name__ == "__main__":
     print("Main Method of DicomParsing.py")
     patientsPath = 'Patient_Files/'
     GetTrainingData(patientsPath, "Spinal Cord", save=True)
-
-    

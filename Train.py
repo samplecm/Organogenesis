@@ -114,8 +114,10 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
     dataFiles = sorted(os.listdir(dataFolder))
 
     transform = A.Compose ([
-    A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(20, p=0.5)], p=0.5),
-    A.ElasticTransform(p=0.5, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03)
+    A.OneOf([A.Perspective(scale=(0.05,0.1), keep_size = True, pad_mode = 0, fit_output = True, p=0.5), A.ElasticTransform(p=0.5, alpha=16, sigma=512*0.05, alpha_affine=512*0.03),
+    #A.GaussNoise(var_limit = 0.05, p = 0.5)
+    ], p =0.5),
+    A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(5, p=0.5)], p=0.5)
     ])
 
     print("Beginning Training")    
@@ -127,7 +129,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
 
         #creates the training dataset 
         #set transform = transform for data augmentation, None for no augmentation
-        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
+        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = transform)
 
         #creates the training dataloader 
         train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)

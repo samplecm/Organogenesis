@@ -67,6 +67,8 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
             contours = PostProcessing.FixContours(contours)  
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+            contours = PostProcessing.InterpolateSlices(contours, patientFileName, organ, path, sliceThickness)
+            #contours = PostProcessing.ContourOrientation(organ, patientFileName, path, threshold, contours)
 
             for layer_idx in range(len(contours)):
                 if len(contours[layer_idx]) > 0:
@@ -78,7 +80,10 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
                         contoursList.append(y)
                         contoursList.append(z)
             with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_predictedContours.txt")), "wb") as fp:
-                pickle.dump([contourImages, contours], fp)           
+                pickle.dump([contourImages, contours], fp)       
+                
+
+
     else:
         contours = []
         zValues = [] #keep track of z position to add to contours after
@@ -104,6 +109,8 @@ def GetContours(organ, patientFileName, path, threshold, modelType, withReal = T
         contours = PostProcessing.FixContours(contours)  
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
+        contours = PostProcessing.InterpolateSlices(contours, patientFileName, organ, path, sliceThickness)
+        #contours = PostProcessing.ContourOrientation(organ, patientFileName, path, threshold, contours)
 
         for layer_idx in range(len(contours)):
             if len(contours[layer_idx]) > 0:
@@ -161,6 +168,43 @@ def GetMultipleContours(organList, patientFileName, path, thresholdList, modelTy
         existingContours = existingContours + combinedContours[3]
 
     Test.PlotPatientContours(contours, existingContours)
+
+    return contours, existingContours
+
+def GetOriginalContours(organ, patientFileName, path):
+
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+
+    existingContours = [] 
+    existingContoursList = []
+
+    try:
+        existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientFileName + "_ExistingContours.txt")), "rb"))  
+        for layer_idx in range(len(existingContours)):
+            if len(existingContours[layer_idx]) > 0:
+                for point_idx in range(len(existingContours[layer_idx])):
+                    x = existingContours[layer_idx][point_idx][0]
+                    y = existingContours[layer_idx][point_idx][1]
+                    z = existingContours[layer_idx][point_idx][2]     
+                    existingContoursList.append(x)
+                    existingContoursList.append(y)
+                    existingContoursList.append(z)
+    except: 
+        existingContours = DicomParsing.GetDICOMContours(patientFileName, organ, path)
+        for layer_idx in range(len(existingContours)):
+            if len(existingContours[layer_idx]) > 0:
+                for point_idx in range(len(existingContours[layer_idx])):
+                    x = existingContours[layer_idx][point_idx][0]
+                    y = existingContours[layer_idx][point_idx][1]
+                    z = existingContours[layer_idx][point_idx][2]
+                    existingContoursList.append(x)
+                    existingContoursList.append(y)
+                    existingContoursList.append(z)
+
+    return existingContours, existingContoursList
+
+
 
 
 
