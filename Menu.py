@@ -92,9 +92,8 @@ def main():
     if (task == 1):
         Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=True, modelType = "MultiResUNet")
         #Test.Best_Threshold(OARs[chosenOAR],400)
-
-
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
+
     elif task == 2:    
         Predict.GetMultipleContours(chosenOARs,"P85",path = None, modelType = "multiresunet", thresholdList = [0.5], withReal=True, tryLoad=False) 
         
@@ -111,10 +110,6 @@ def main():
         ##print(np.amax(array))
         #Test.TestPlot(chosenOARs[0], path=None, threshold=0.7, modelType = "UNet") 
         Test.PercentStats(chosenOARs[0], path = None)
-
-
-
-
 
 if __name__ == "__main__":
     

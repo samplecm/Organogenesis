@@ -165,14 +165,14 @@ def GetMasks(organ, patientName, path, threshold, modelType):
         
 
 def MaskOnImage(image, mask):
-    """**Insert description  
+    """takes a normalized CT image and a binary mask, and creates a normalized image with the mask on the CT.
 
     Args:
-        image (ndarray): the image to be normalized 
-        mask (ndarray): 
+        image (2D numpy array): the CT image which the mask image corresponds to.
+        mask (2D numpy array): the binary mask which is to be placed ontop of the CT image.
 
     Returns:
-        ndarray: **
+        (2D numpy array): a normalized image of the mask placed ontop of the CT image, with the binary mask pixel value being 1.2x the maximum CT pixel value.
 
     """
     xLen, yLen = image.shape
