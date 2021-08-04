@@ -93,13 +93,8 @@ def main():
         except: pass   
 
     if (task == 1):
-<<<<<<< HEAD
-        Train.Train(OARs[chosenOAR], 7, 1e-3, path="/media/calebsample/Data/temp", processData=True, loadModel=False, preSorted=False)
-        Test.Best_Threshold(OARs[chosenOAR],400)
-=======
         Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
         #Test.Best_Threshold(OARs[chosenOAR],400)
->>>>>>> 72bc0a3d43d7245713fd7059d8401be4f1a9e761
 
 
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
@@ -107,23 +102,12 @@ def main():
         Predict.GetMultipleContours(chosenOARs,"P85",path = None, modelType = "multiresunet", thresholdList = [0.5], withReal=True, tryLoad=False) 
         
     elif task == 3:
-<<<<<<< HEAD
-        Test.Best_Threshold(OARs[chosenOAR], path=None, testSize=500, onlyMasks=False,onlyBackground=False)
-=======
         Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "UNet", onlyMasks=False, onlyBackground=False)
->>>>>>> 72bc0a3d43d7245713fd7059d8401be4f1a9e761
     elif task == 4:
         F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.2, path = None, modelType = "unet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:
-<<<<<<< HEAD
-        array, y = Test.GetMasks(OARs[chosenOAR], "HN1046", path="/media/calebsample/Data/temp", threshold=0.1)
-        import numpy as np
-        print(np.amax(y))
-        print(np.amax(array))
-        Test.TestPlot(OARs[chosenOAR], path="/media/calebsample/Data/temp", threshold=0.1) 
-=======
         #array, y = Test.GetMasks(OARs[chosenOAR], "P10", path=None, threshold=0.7, modelType = "UNet")
         #import numpy as np
         #print(np.amax(y))
@@ -132,7 +116,6 @@ def main():
         Test.PercentStats(chosenOARs[0], path = None)
 
 
->>>>>>> 72bc0a3d43d7245713fd7059d8401be4f1a9e761
 
 
 
