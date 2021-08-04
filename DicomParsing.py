@@ -536,9 +536,18 @@ def AllowedToMatch(s1, s2):
 
 
 def StringDistance(s1, s2):
+    """returns the Damerau-Levenshtein distance between two strings
+
+    Args:
+        s1 (string): string one which is to be compared with string 2.
+        s2 (string): string two which is to be compared with string 1.
+
+    Returns:
+        (int): the Damerau Levenshtein distance between s1 and s2, which indicates how different the two strings are in terms of the amount of deletion, insertion, substitution, and transposition operations required to equate the two.
+
+    """
     return damerauLevenshtein(s1,s2,similarity=False)
 
-    return d[lenstr1-1,lenstr2-1]
 def LongestSubstring(s1,s2):
     m = len(s1)
     n = len(s2)
