@@ -18,7 +18,7 @@ def Process(prediction, threshold):
     """Performs a sigmoid and filters the prediction to a given threshold.
 
     Args:
-        prediction (ndarray): an array of the predicted pixel values 
+        prediction (2D numpy array): an array of the predicted pixel values 
         threshold (float) : the cutoff for deciding if a pixel is 
             an organ (assigned a 1) or not (assigned a 0)
 
@@ -48,12 +48,12 @@ def FilterContour(image, threshold):
        This is the opposite of FilterBackground.
 
     Args:
-        image (ndarray): an array of pixels with values between 0 and 1
+        image (2D numpy array): an array of pixels with values between 0 and 1
         threshold (float): the cutoff for deciding if a pixel is 
             an organ (assigned a 1) or not (assigned a 0)
 
     Returns:
-        filteredImage (ndarray): the binary mask
+        filteredImage (2D numpy array): the binary mask
 
     """
 
@@ -77,12 +77,12 @@ def FilterBackground(image, threshold):
        This is the opposite of FilterContour.
 
     Args:
-        image (ndarray): an array of pixels with values between 0 and 1
+        image (2D numpy array): an array of pixels with values between 0 and 1
         threshold (float): the cutoff for deciding if a pixel is 
             an organ (assigned a 1) or not (assigned a 0)
 
     Returns:
-        filteredImage (ndarray): the binary mask of the background
+        filteredImage (2D numpoy array): the binary mask of the background
 
     """
 
@@ -124,12 +124,15 @@ def MaskToContour(image):
     """Creates a contour from a mask.  
 
     Args:
-        image (ndarray): the mask to create a contour from
+        image (2D numpy array): the mask to create a contour from
 
     Returns:
-        edges (ndarray): **
-        contours (list):
-        combinedContours (list): 
+        edges (2D array): an array of the same dimensions as image 
+            with values 0 (pixel is not an edge) or 255 (pixel is 
+            an edge)
+        contours (ndarray): an array of the contour points for image
+        combinedContours (ndarray): an array of the contour points 
+            for image combined from multiple contours
 
 
     """
@@ -173,30 +176,18 @@ def AddZToContours(contours, zValues):
             contours[layer][point_idx] = [contours[layer][point_idx][0],contours[layer][point_idx][1],int(zValues[layer])]
         return contours
 
-
-def GetMaskContour(image):
-    """Converts a mask into a list of contour points. 
-
-    Args:
-        image (ndarray) the mask to be converted **
-
-    """
-
-    image = image.astype(np.uint8)
-    edges = cv.Canny(image, 0,0.9)
-
 def FixContours(orig_contours):
     """Creates additional interpolated contour slices if there 
-       are missing ones or if they have less than 4 points.
+       are missing slice or if the slice has less than 4 points.
 
     Args:
         orig_contours (list): a list of lists. Each item is a list 
-            of the predicted contour points as ndarrays [x,y]
+            of the predicted contour points as 1D arrays [x,y]
             at a specific z value
     Returns:
         contours (list): a list of lists. Each item is a list 
             of the predicted contour points [x,y]
-            at a specific z value
+            at a specific z value 
 
     """
     #orig_contours is currently in a ridiculous nested data structure. so fix it first. 
@@ -279,18 +270,19 @@ def FixContours(orig_contours):
     
 
 def InterpolateContour(contours1, contours2, distance):
-    """Creates a lineraly interpolated contour slice between contours1 and contours2. **
+    """Creates a lineraly interpolated contour slice between contours1 and contours2. 
 
     Args:
-        contours1 (list): the first point to be interpolated [x,y]
-        contours2 (list): the second point to be interpolated [x,y]
-        distance (int): the z distance between point 1 and point 2 **
+        contours1 (list): the first slice to be interpolated with. 
+            A list of [x,y] coordinates
+        contours2 (list): the second slice to be interpolated with
+            A list of [x,y] coordinates
+        distance (int): the z distance between contours1 and contours2
 
     Returns:
-        list: the interpolated point [x,y]
+        newContour (list): the interpolated slice. A list of [x,y] coordinates
     """
-    #idea is to take contours1, and create a new slice directly on top, which is an linear interpolation with the contour
-    # at contours2, which is "distance" slices away from contours1
+
     newContour = []
     for point in contours1:
         point2 = ClosestPoint(point, contours2) #closest point in xy plane in contours2 list
@@ -313,7 +305,7 @@ def ClosestPoint(point, contours):
         closestPoint (list): the closest point to the given point 
              in the contours list [x,y]
     """
-    #find closest point to the given point within the contours list (in xy plane)
+
     minDist = 1000
     closestPoint = []
     x = point[0]
@@ -327,14 +319,16 @@ def ClosestPoint(point, contours):
             closestPoint = point2 
             minDist = diff
     return closestPoint   
+
 def InterpolatePoint(point1, point2, totalDistance, distance = 1):
-    """Perfoms linear interpolation between point1 and point2 
-       at a distance of 1 from point1 and distance-1 from point 2.
+    """Perfoms linear interpolation between point1 and point2.
 
     Args:
         point1 (list): the first point to be interpolated [x,y]
         point2 (list): the second point to be interpolated [x,y]
-        distance (int): the z distance between point 1 and point 2
+        totalDistance (int, float): the z distance between point 1 and point 2
+        distance (int, float): the z distance between point 1 and the z value 
+            of the interpolated point
 
     Returns:
         list: the interpolated point [x,y]
@@ -347,12 +341,12 @@ def InterpolatePoint(point1, point2, totalDistance, distance = 1):
     y2 = point2[1]
 
 
-    dx_dz = (x2-x1) / totalDistance
-    dy_dz = (y2-y1) / totalDistance
+    dx_dz = (x2-x1) / float(totalDistance)
+    dy_dz = (y2-y1) / float(totalDistance)
 
     #get new point which is a distance of 1 away from point1
-    x = x1 + dx_dz * distance
-    y = y1 + dy_dz * distance
+    x = x1 + dx_dz * float(distance)
+    y = y1 + dy_dz * float(distance)
 
     return [x,y]
 
@@ -478,8 +472,28 @@ def Infer_From_ONNX(organ, patient):
 
 
 def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
+    """Interpolates slices with an unreasonable area, an unreasonable number of 
+       points, or with missing slices using the closest slice above and below.
 
-    slicesToFix = list(set(UnreasonableArea(contours, organ, path) + MissingSlices(contours, patientName, path, sliceThickness) + UnreasonableNumPoints(contours, organ, path)))
+    Args:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points (x, y, and z values) 
+            at a specific z value
+        patientName (str): the name of the patient folder to 
+            interpolate contours for
+        organ (str): the organ to interpolate contours for
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        sliceThickness (float): the distance between each CT slice in mm
+
+    Returns:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted and interplated contour points 
+            (x, y, and z values) at a specific z value
+
+    """
+
+    slicesToFix = list(set(UnreasonableArea(contours, organ, path) + MissingSlices(contours, sliceThickness) + UnreasonableNumPoints(contours, organ, path)))
 
     contourZValues = GetZValues(contours)
     maxZValue = max(contourZValues)
@@ -535,7 +549,23 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
     return contours
 
 def UnreasonableArea(contours, organ , path):
-     #retuns a list of the z values for CT slices with an unreasonable predicted contour area 
+    """Determines which slices in the predicted contour have an unreasonable area.
+       Unreasonable area is defined as less than the minimum area or more than the
+       maximum area at a pecentage through a contour. Based on the stats from the 
+       PercentStats function. 
+
+    Args:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points (x, y, and z values) 
+            at a specific z value
+        organ (str): the organ that contours were predicted for
+        path (str): the path to the directory containing organogenesis folders 
+
+    Returns:
+        unreasonableArea (list): a list of z values for slices with an 
+            unreasonable area
+
+    """
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute() 
@@ -579,7 +609,25 @@ def UnreasonableArea(contours, organ , path):
     return unreasonableArea
 
 def UnreasonableNumPoints(contours, organ, path):
-    #returns a list of z values for the slices with an unreasonable number of contour points 
+    """Determines which slices in the predicted contour have an unreasonable number
+       of points. An unreasonable number of points is defined as less than the minimum
+       number of points at a specific percentage through the contour multiplied by 
+       a factor. Based on the stats from the PercentStats function and factors are 
+       organ specific. 
+
+    Args:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points (x, y, and z values) 
+            at a specific z value
+        organ (str): the organ that contours were predicted for
+        path (str): the path to the directory containing organogenesis folders 
+
+    Returns:
+        unreasonableNumPoints (list): a list of z values for slices with an 
+            unreasonable number of points
+
+    """
+
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute() 
 
@@ -622,11 +670,20 @@ def UnreasonableNumPoints(contours, organ, path):
     return unreasonableNumPoints
 
 
-def MissingSlices(contours,patientName, path, sliceThickness):
-    #returns a list of the z values for slices with missing contours 
+def MissingSlices(contours, sliceThickness):
+    """Determines which slices in the predicted contour are missing. Contours 
+       are expected to be continuous from the lowest z value to the highest. 
 
-    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
-        path = pathlib.Path(__file__).parent.absolute() 
+    Args:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points (x, y, and z values) 
+            at a specific z value
+        sliceThickness (float): the distance between each CT slice in mm 
+
+    Returns:
+        missingZValues (list): a list of z values for the missing slices
+
+    """ 
 
     zValueList = GetZValues(contours)
 
@@ -656,6 +713,18 @@ def MissingSlices(contours,patientName, path, sliceThickness):
 
 
 def GetZValues(contours):
+    """Gets all of the z values in a contour. 
+
+    Args:
+        contours (list): a list of lists. Each item is a list 
+            of contour points (x, y, and z values) at a specific 
+            z value
+
+    Returns:
+        zValueList (list): a list of all the z values in a contour
+
+    """ 
+
     zValueList = []
 
     for slice in contours: 
@@ -665,7 +734,21 @@ def GetZValues(contours):
     return zValueList
 
 def GetPointsAtZValue(contours, zValue): 
-    #returns a list of the points at a given z value in a contour 
+    """Gets all the points [x,y] at a given z value in a contour
+
+    Args:
+        contours (list): a list of lists. Each item is a list 
+            of contour points (x, y, and z values) at a specific 
+            z value
+        zValue (float): the z value of the slice to get the 
+            points for
+
+    Returns:
+        pointsList (list): a list of all the points [x,y] at 
+            the given z value
+
+    """ 
+
     pointsList = []
 
     for slice in contours:

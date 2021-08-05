@@ -17,7 +17,7 @@ from fastDamerauLevenshtein import damerauLevenshtein
     
 #Want to have a function that checks for a structure in patients' structure sets, and obtains the contours
 #if preSorted = True, that means that they are already sorted lists indicating whether the contour is good or bad (no need to plot) 
-def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
+def GetTrainingData(filesFolder, organ, preSorted, path):
     """Processes the dicom file data and saves it. CT images, masks, and z values 
        are saved for the training and validation data. 10% of patients with good contours 
        are saved to the validation data set. CT images are saved for the testing data.
@@ -31,7 +31,6 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
             False to display contours for each patient and sort manually
         path (str): the path to the directory containing organogenesis folders 
             (Models, Processed_Data, etc.)
-        save (bool): **what is this
 
     """
 
@@ -237,18 +236,19 @@ def GetTrainingData(filesFolder, organ, preSorted, path, save=True):
                     #now add all contour points to contourPoints as Point objects
                     for pointList in contour:
                         contourPoints.append((int(pointList[0]), int(pointList[1])))
-                    contourPolygon = Polygon(contourPoints)
-                    ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
-                    #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
-                    #ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
-                    contourImage = np.array(contourImage)
-                    contourImages.append(contourImage)
-                    # combinedImage = np.array(combinedImage)
-                    # combinedImages.append(combinedImage)
-                    backgroundImage = np.array(backgroundImage)
-                    backgroundImages.append(backgroundImage)
-                    contourOnImage = True
-                    break
+                    if len(pointList) > 3:
+                        contourPolygon = Polygon(contourPoints)
+                        ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
+                        #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
+                        #ImageDraw.Draw(backgroundImage).polygon(contourPoints, outline= 0, fill = 0)
+                        contourImage = np.array(contourImage)
+                        contourImages.append(contourImage)
+                        # combinedImage = np.array(combinedImage)
+                        # combinedImages.append(combinedImage)
+                        backgroundImage = np.array(backgroundImage)
+                        backgroundImages.append(backgroundImage)
+                        contourOnImage = True
+                        break
             if not contourOnImage:
                 #if no contour on that layer, add just zeros array
                 contourImage = np.zeros((xLen,yLen))
@@ -409,15 +409,15 @@ def GetPredictionCTs(patientName, path):
     return CTs 
 
 def GetDICOMContours(patientName, organ, path):
-    """Gets the contours of a given organ from a given patient 
-       from a dicom file. 
+    """Gets the contours of a given organ from a given patient's 
+       dicom file. 
      
     Args:
-        patientName (str): the name of the patient folder to 
-            get the contour of
+        patientName (str): the name of the patient folder containing 
+            the dicom files (CT images) to get the contours of
         organ (str) the organ to get contours of
         path (str): the path to the directory containing 
-        organogenesis folders (Models, Processed_Data, etc.)
+            organogenesis folders (Models, Processed_Data, etc.)
 
     Returns: 
         contours (list): a list of lists. Each item is a list 
@@ -470,9 +470,6 @@ def GetDICOMContours(patientName, organ, path):
         pickle.dump(contours, fp)  
     return contours
                 
-        
-
-
 def FindStructure(metadata, organ, invalidStructures = []):
     """Finds the matching structure to a given organ in a patient's
        dicom file metadata. 
@@ -480,7 +477,7 @@ def FindStructure(metadata, organ, invalidStructures = []):
     Args:
         metadata (DataElement): the data contained in the 
             StructureSetROISequence of the patient's dicom file
-        organ (str) the organ to find the matching structure for
+        organ (str): the organ to find the matching structure for
         invaidStructures (list): a list of strctures that the matching 
             structure cannot be, defaults to an empty list
 
@@ -618,7 +615,7 @@ def StringDistance(s1, s2):
     return damerauLevenshtein(s1,s2,similarity=False)
 
 def LongestSubstring(s1,s2):
-    """Finds the length og the longest substring that is in 
+    """Finds the length of the longest substring that is in 
        both s1 and s2.
      
     Args:
@@ -626,7 +623,7 @@ def LongestSubstring(s1,s2):
         s2 (str): the second string to find the longest substring in
 
     Returns: 
-        longest (int): the length of the longets substring that is in 
+        longest (int): the length of the longest substring that is in 
             s1 and s2
         
     """
@@ -674,11 +671,11 @@ def ImageUpsizer(array, factor):
     """Supersizes an array by the factor given.   
 
     Args:
-        array (ndarray): an array to be supersized
+        array (2D numpy array): an array to be supersized
         factor (int): the amount to supersize the array by 
 
     Returns:
-        newArray (ndarray): the supersized array
+        newArray (2D numpy array): the supersized array
 
     """
 
@@ -773,6 +770,6 @@ def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickne
 if __name__ == "__main__":
     print("Main Method of DicomParsing.py")
     patientsPath = 'Patient_Files/'
-    GetTrainingData(patientsPath, "Spinal Cord", save=True)
+    GetTrainingData(patientsPath, "Spinal Cord")
 
     

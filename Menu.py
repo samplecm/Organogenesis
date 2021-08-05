@@ -90,7 +90,7 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=True, modelType = "MultiResUNet")
+        Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
         #Test.Best_Threshold(OARs[chosenOAR],400)
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
 

@@ -25,7 +25,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
     """Trains a model for predicting contours on a given organ. Saves the model 
        and loss history after each epoch. Stops training after a given number of
        epochs or when the validation loss has decreased by less than 0.001 for 
-       4 epochs. 
+       4 consecutive epochs. 
 
     Args:
         organ (str): the organ to train the model on 
@@ -146,7 +146,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
 
         #creates the training dataset 
         #set transform = transform for data augmentation, None for no augmentation
-        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = transform)
+        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
 
         #creates the training dataloader 
         train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)
@@ -227,22 +227,18 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
         if stopCount == 4: 
             os._exit(0)
 
-
-         
-         
-
 def Validate(organ, model):
     """Computes the average loss of the model on the validation data set. 
 
     Args:
         organ (str): the organ to train the model on 
-        model (**): the model to find the validation loss on
+        model (Module): the model to find the validation loss on
 
     Returns:
         float: the average loss on the entire validation data set
-        
 
     """
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     model = model.eval()
@@ -265,7 +261,7 @@ def Validate(organ, model):
             image = image.to(device)
             mask = mask.to(device)
          
-            loss = model.trainingStep(image,mask)
+            loss = model.validationStep(image,mask)
         lossHistory.append(loss.item())
         if iteration % 100 == 99:
             print("Validating on the " + str(iteration + 1) + "th image.")
