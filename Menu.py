@@ -42,7 +42,7 @@ def main():
     print("------------------")
 
     #Keep a list of available structures for training/predicting
-    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "All"] 
+    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "Left Submandibular", "Right Submandibular","All"] 
 
     #Need to get user input. Make a string to easily ask for a number corresponding to an OAR.
     ChooseOAR_string = "Please enter the number(s) for the organ(s) you wish to contour / train a model for. Separate the numbers with spaces \n>>"
@@ -96,14 +96,13 @@ def main():
     if (task == 1):
         Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
         #Test.Best_Threshold(OARs[chosenOAR],400)
-
-
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
+
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"HN1368",path = None, modelType = "multiresunet", thresholdList = [0.5], withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"HN1004",path = None, modelType = "multiresunet", thresholdList = [0.02], withReal=True, tryLoad=False) 
         
     elif task == 3:
-        Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "UNet", onlyMasks=False, onlyBackground=False)
+        Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "multiresunet", onlyMasks=False, onlyBackground=False)
     elif task == 4:
         F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.8, path = None, modelType = "multiresunet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
@@ -113,11 +112,8 @@ def main():
         #import numpy as np
         #print(np.amax(y))
         ##print(np.amax(array))
-        Test.TestPlot(chosenOARs[0], path=None, threshold=0.7, modelType = "UNet") 
-        
-
-
-
+        #Test.TestPlot(chosenOARs[0], path=None, threshold=0.7, modelType = "UNet") 
+        Test.PercentStats(chosenOARs[0], path = None)
 
 if __name__ == "__main__":
     
