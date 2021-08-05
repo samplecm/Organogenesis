@@ -38,7 +38,7 @@ def main():
     print("------------------")
 
     #Keep a list of available structures for training/predicting
-    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "All"] 
+    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "Left Submandibular", "Right Submandibular","All"] 
 
     #Need to get user input. Make a string to easily ask for a number corresponding to an OAR.
     ChooseOAR_string = "Please enter the number(s) for the organ(s) you wish to contour / train a model for. Separate the numbers with spaces \n>>"
@@ -95,7 +95,7 @@ def main():
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
 
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"P85",path = None, modelType = "multiresunet", thresholdList = [0.5], withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"HN1004",path = None, modelType = "multiresunet", thresholdList = [0.02], withReal=True, tryLoad=False) 
         
     elif task == 3:
         Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "multiresunet", onlyMasks=False, onlyBackground=False)
