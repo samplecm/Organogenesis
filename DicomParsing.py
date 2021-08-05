@@ -10,7 +10,6 @@ from shapely.geometry.polygon import Polygon
 from PIL import Image, ImageDraw
 from operator import itemgetter
 import matplotlib.pyplot as plt
-import Preprocessing
 import open3d as o3d
 import random
 from fastDamerauLevenshtein import damerauLevenshtein
