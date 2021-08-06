@@ -182,6 +182,13 @@ class ContourPredictionError(Exception):
     """
 
     def __init__(self, message = "Contour Prediction Error. No contour points were predicted by the model. Please check that you are using the right threshold and try again."):
+        """Instantion method of ContourPredictionError. 
+
+        Args: 
+            message (string): the message to be printed if the contour 
+                prediction error is raised 
+
+        """
         self.message = message
         super().__init__(self.message)
 
