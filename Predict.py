@@ -97,7 +97,6 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
             contours = PostProcessing.InterpolateSlices(contours, patientName, organ, path, sliceThickness)
-            #contours = PostProcessing.ContourOrientation(organ, patientName, path, threshold, contours)
 
             for layer_idx in range(len(contours)):
                 if len(contours[layer_idx]) > 0:
@@ -136,7 +135,6 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
         contours = PostProcessing.InterpolateSlices(contours, patientName, organ, path, sliceThickness)
-        #contours = PostProcessing.ContourOrientation(organ, patientName, path, threshold, contours)
 
         for layer_idx in range(len(contours)):
             if len(contours[layer_idx]) > 0:
