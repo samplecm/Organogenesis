@@ -176,6 +176,15 @@ def AddZToContours(contours, zValues):
             contours[layer][point_idx] = [contours[layer][point_idx][0],contours[layer][point_idx][1],int(zValues[layer])]
         return contours
 
+class ContourPredictionError(Exception):
+    """Exception raised if there are no contour points in a contour. 
+
+    """
+
+    def __init__(self, message = "Contour Prediction Error. No contour points were predicted by the model. Please check that you are using the right threshold and try again."):
+        self.message = message
+        super().__init__(self.message)
+
 def FixContours(orig_contours):
     """Creates additional interpolated contour slices if there 
        are missing slice or if the slice has less than 4 points.
@@ -191,6 +200,15 @@ def FixContours(orig_contours):
 
     """
     #orig_contours is currently in a ridiculous nested data structure. so fix it first. 
+    maxLength = 0
+
+    for slice in orig_contours: 
+        if len(slice) > maxLength:
+            maxLength = len(slice)
+
+    if maxLength == 0:
+        raise ContourPredictionError
+
     contours = []
     for plane in orig_contours:
         planePoints = []
