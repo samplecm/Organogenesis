@@ -4,7 +4,15 @@ import numpy as np
 import torch.nn.functional as F
 
 class UNet(nn.Module):
+    """A class for the convolutional neural network UNet. 
+
+    """
+
     def __init__(self):
+      """Instantiation method for UNet. 
+
+      """
+
       super(UNet, self).__init__()
       self.maxPool_2x2 = nn.MaxPool2d(kernel_size=2, stride=2)
       self.downConv1 = DoubleConv(1,64)
@@ -21,9 +29,18 @@ class UNet(nn.Module):
       self.upTrans4 = nn.ConvTranspose2d(in_channels=128, out_channels = 64, kernel_size = 2, stride = 2)
       self.upConv4 = DoubleConv(128, 64)
       self.out = nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1)
-          
 
     def forward(self, image):
+        """Performs the U architecture (encoder and decoder) of UNet.
+
+        Args:
+            image (2D tensor): the input image
+            
+        Returns:
+            x (2D tensor): the segmentation mask
+
+        """
+
         #bs, c , h ,w
         #The encoder (first half of "U")
         x1 = self.downConv1(image) #
@@ -57,26 +74,52 @@ class UNet(nn.Module):
         return x
 
     def trainingStep(self, x, y):
+        """Performs a training step. 
+
+        Args: 
+            x (2D tensor): the CT image 
+            y (2D tensor): the ground truth mask
+
+        Returns: 
+            loss (float): the binary cross entropy loss of the model 
+                using training data
+
+        """
+
         out = self(x)
         loss = nn.BCEWithLogitsLoss()(out.float(), y.float())    #
         return loss
 
     def validationStep(self, x, y):
+        """Performs a validation step. 
+
+        Args: 
+            x (2D tensor): the CT image 
+            y (2D tensor): the ground truth mask
+
+        Returns:
+            loss (float): the binary cross entropy loss of the model 
+                using validation data
+
+        """
+
         out = self(x)
         loss = nn.BCEWithLogitsLoss()(out.float(), y.float())    #
         return loss
 
-    def validationEpochEnd(self, outputs):
-        batchLosses = [x['val_loss'] for x in outputs]
-        epochLoss = torch.stack(batchLosses).mean()
-        return {'val_loss': epochLoss.item()}
-
-    def epochEnd(self, epoch, result):
-        print("Epoch [{}], val_loss: {:.4f}".format(epoch, result['val_loss']))
-
-
-
 def DoubleConv(inC, outC):
+    """Performs two successive 3x3 convolutions, each followed by 
+        a batch normalization, and a ReLU.
+
+    Args: 
+        inC (int): input channels, the number of channels of the inputted tensor
+        outC (int): output channels, the number of channels of the outputted tensor
+
+    Returns:
+        conv (2D tensor): the tensor that has been modified
+
+    """
+
     conv = nn.Sequential(
         nn.Conv2d(inC, outC, kernel_size = 3, padding=1),
         nn.BatchNorm2d(outC),
@@ -88,6 +131,17 @@ def DoubleConv(inC, outC):
     return conv
 
 def Crop(tensor, targetTensor):
+    """Crops tensor to the size of targetTensor. 
+
+    Args: 
+        tesnor (2D tensor): the tensor to be cropped
+        targetTensor (int): the tensor of the desired size
+
+    Returns:
+        tensor: the cropped tensor 
+
+    """
+
     targetSize= targetTensor.size()[2]
     tensorSize= tensor.size()[2]
     delta = tensorSize - targetSize
@@ -96,7 +150,21 @@ def Crop(tensor, targetTensor):
 
 
 class MultiResBlock(nn.Module):
+    """A class for the MultiResBlock which is a part of MultiResUNet. 
+
+    """
+
     def __init__(self,inC, outC, alpha):
+        """Instantiation method for the MultiResBlock class. 
+        
+        Args: 
+            inC (int): input channels, the number of channels of the inputted tensor
+            outC (int): output channels, the number of channels of the outputted tensor
+            alpha (float): scalar cefficient which can be adjusted to change the 
+                number of parameters in the model
+
+        """
+
         super().__init__()
         self.inChannels = inC
         self.W = alpha * outC
@@ -117,7 +185,15 @@ class MultiResBlock(nn.Module):
 
       
     def forward(self, image):
- 
+      """Performs the steps of the MultiResBlock. 
+
+      Args: 
+        image (2D tensor): the tensor to go through the MultiResBlock
+
+      Returns: 
+        final (2D tensor) the modified tensor 
+      """
+
       conv1 = self.conv1(image)
       conv1 = self.batchNorm1(conv1)
       conv1 = nn.ReLU(inplace=True)(conv1)
@@ -137,11 +213,15 @@ class MultiResBlock(nn.Module):
       final = self.batchNormFinal(final)
       return final
 
-
-      
-
 class MultiResUNet(nn.Module):
+    """A class for the convolutional neural network MultiResUNet. 
+
+    """
+
     def __init__(self):
+        """Instantiation method for MultiResUNet. 
+
+        """
         super().__init__()
         self.alpha = 1.67
         self.inSize2 = int(self.alpha*32/6) + int(self.alpha*32/3) + int(self.alpha*32/2)
@@ -189,6 +269,16 @@ class MultiResUNet(nn.Module):
    
 
     def forward(self, image):
+        """Performs the U architecture (encoder, decoder, and Res paths) of MultiResUNet.
+
+        Args:
+            image (2D tensor): the input image
+            
+        Returns:
+            x (2D tensor): the segmentation mask
+
+        """
+
         #bs, c , h ,w
         #The encoder (first half of "U")
         x1 = self.multiRes1(image) #
@@ -295,22 +385,38 @@ class MultiResUNet(nn.Module):
         return x
 
     def trainingStep(self, x, y):
+        """Performs a training step. 
+
+        Args: 
+            x (2D tensor): the CT image 
+            y (2D tensor): the ground truth mask
+
+        Returns:
+            loss (float): the binary cross entropy loss of the model 
+                using training data
+
+        """
+
         out = self(x)
         loss = nn.BCEWithLogitsLoss()(out.float(), y.float())    #
         return loss
 
     def validationStep(self, x, y):
+        """Performs a validation step. 
+
+        Args: 
+            x (2D tensor): the CT image 
+            y (2D tensor): the ground truth mask
+
+        Returns:
+            loss (float): the binary cross entropy loss of the model 
+                using validation data
+
+        """
+
         out = self(x)
         loss = nn.BCEWithLogitsLoss()(out.float(), y.float())    #
         return loss
-
-    def validationEpochEnd(self, outputs):
-        batchLosses = [x['val_loss'] for x in outputs]
-        epochLoss = torch.stack(batchLosses).mean()
-        return {'val_loss': epochLoss.item()}
-
-    def epochEnd(self, epoch, result):
-        print("Epoch [{}], val_loss: {:.4f}".format(epoch, result['val_loss']))
 
 
 

@@ -19,9 +19,20 @@ from scipy.spatial.distance import directed_hausdorff
 import math
 from scipy.spatial import ConvexHull
 
-
-
 def TestPlot(organ, path, threshold, modelType):
+    """Plots 2D CTs with both manually drawn and predicted masks 
+       for visual comparison.
+
+    Args:
+        organ (str): the organ to plot masks for
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        threshold (float) : the cutoff for deciding if a pixel is 
+            an organ (assigned a 1) or not (assigned a 0)
+        modelType (str): the type of model
+
+    """
+
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -85,6 +96,26 @@ def TestPlot(organ, path, threshold, modelType):
         plt.show()
         
 def GetMasks(organ, patientName, path, threshold, modelType):
+    """Gets the existing and predicted masks of a given organ for a given patient. 
+
+    Args:
+        organ (str): the organ to predict contours for
+        patientName (str): the name of the patient folder conating dicom files 
+            (CT images) to get masks for
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        threshold (float) : the cutoff for deciding if a pixel is 
+            an organ (assigned a 1) or not (assigned a 0)
+        modelType (str): the type of model
+
+    Returns:
+        predictionsArray (3D numpy array): predicted masks of the organ for 
+            a given patient
+        exisitingArray (3D numpy array): existing masks of the organ for
+            a given patient
+
+    """
+
     #Returns a 3d array of predicted masks for a given patient name. 
     if path == None:
         path = pathlib.Path(__file__).parent.absolute()    
@@ -110,8 +141,7 @@ def GetMasks(organ, patientName, path, threshold, modelType):
     patientImages.sort()    
 
     predictions = [] #First put 2d masks into predictions list and then at the end stack into a 3d array
-    originalMasks = []
-
+    existingMasks = []
     for image in patientImages:
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, image), 'rb'))[0][:]
@@ -128,23 +158,23 @@ def GetMasks(organ, patientName, path, threshold, modelType):
         x = x.numpy()
         predic = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
         predictions.append(predic)
-        originalMasks.append(y)
+        existingMasks.append(y)
     #Stack into 3d array    
-    predictionsArray = np.stack(predictions, axis=2)
-    originalsArray = np.stack(originalMasks, axis=2)
-    return predictionsArray, originalsArray  
-
-        
+    predictionsArray = np.stack(predictions, axis=0)
+    existingArray = np.stack(existingMasks, axis=0)
+    return predictionsArray, existingArray    
 
 def MaskOnImage(image, mask):
-    """takes a normalized CT image and a binary mask, and creates a normalized image with the mask on the CT.
+    """takes a normalized CT image and a binary mask, and creates a normalized 
+    image with the mask on the CT.
 
     Args:
         image (2D numpy array): the CT image which the mask image corresponds to.
-        mask (2D numpy array): the binary mask which is to be placed ontop of the CT image.
+        mask (2D numpy array): the binary mask which is to be placed on top of the CT image.
 
     Returns:
-        (2D numpy array): a normalized image of the mask placed ontop of the CT image, with the binary mask pixel value being 1.2x the maximum CT pixel value.
+        (2D numpy array): a normalized image of the mask placed on top of the CT image, 
+            with the binary mask pixel value being 1.2x the maximum CT pixel value.
 
     """
     xLen, yLen = image.shape
@@ -155,8 +185,17 @@ def MaskOnImage(image, mask):
                 image[x,y] = 1.2
     return NormalizeImage(image)            
 
-
 def NormalizeImage(image):
+    """Normalizes an image between 0 and 1.  
+
+    Args:
+        image (ndarray): the image to be normalized 
+
+    Returns:
+        ndarray: the normalized image
+
+    """
+
     #if its entirely ones or entirely zeros, can just return it as is. 
     if np.amin(image) == 1 and np.amax(image) == 1:
         return image
@@ -166,13 +205,24 @@ def NormalizeImage(image):
     amin = np.amin(image)
     return (image - amin) / ptp    
 
-def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBackground=False):
+def BestThreshold(organ, path, modelType, testSize=500):
+    """Determines the best threshold for predicting contours based on the 
+       F score. Displays graphs of the accuracy, false positives, false
+       negatives, and F score vs threshold. Also saves these stats to the
+       model folder.
+
+    Args:
+        organ (str): the organ to get the best threshold for
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        modelType (str): the type of model
+        testSize (str, int) = the number of images to test with for each threshold
+
+    """
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device being used for training: " + device.type)
-    #return the model output threshold that maximizes accuracy. onlyMasks if true will calculate statistics
-    #only for images that have a mask on the plane, and onlyBackground will do it for images without masks.
     print("Determining most accurate threshold...")
     if modelType.lower() == "unet":
         model = Model.UNet()
@@ -194,7 +244,6 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     filesRange = list(range(len(dataFiles)))
     random.shuffle(filesRange)
 
-    
     accuracies = [] #make a list of average accuracies calculated using different thresholds
     falsePos = []
     falseNeg = []
@@ -217,18 +266,6 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
             concatList = []
             while p < numStack:
                 imagePath = dataFiles[d]
-                if onlyMasks:
-                    boolMask = pickle.load(open(os.path.join(boolFolder, boolFiles[d]), 'rb'))
-                    if not boolMask:
-                        p+=1
-                        d+=1
-                        continue
-                elif onlyBackground:
-                    boolMask = pickle.load(open(os.path.join(boolFolder, boolFiles[d]), 'rb'))
-                    if boolMask:
-                        p+=1
-                        d+=1
-                        continue    
                 image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
                 image[0][:] = NormalizeImage(image[0][:])
                 image = image.reshape((2,1,image.shape[1], image.shape[2]))
@@ -243,7 +280,6 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
             numSlices = data.shape[1]
             slices = list(range(numSlices))
             random.shuffle(slices)
-
 
             for sliceNum in slices:
                 x = data[0, sliceNum, :, :]
@@ -281,7 +317,7 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
         fScores.append(sum(thresFScore)/len(thresFScore))
         falseNeg.append(sum(thresFN)/len(thresFN))
         falsePos.append(sum(thresFP)/len(thresFP))
-    #Now need to determine what the best threshold to use is. Also plot the accuracy, FP, FN:
+    #Now need to determine what the best threshold to use is. Also plot the accuracy, FP, FN, F score:
     fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 10))
 
     axs[0].scatter(thresholds, accuracies)
@@ -359,6 +395,16 @@ def BestThreshold(organ, path, modelType, testSize=500, onlyMasks=False, onlyBac
     #Now need to make a numpy array as a list of points
 
 def PlotPatientContours(contours, existingContours):
+    """Plots the contours provided.   
+
+    Args:
+        contours (list): a list of lists. Each item is a list 
+            of the predicted contour points at a specific z value
+        existingContours (list): a list of lists. Each item is a
+            list of the existing contour points at a specific 
+            z value.
+
+    """
     pointCloud = o3d.geometry.PointCloud()
     numPoints = 0
     points = []
@@ -401,6 +447,23 @@ def PlotPatientContours(contours, existingContours):
     o3d.visualization.draw_geometries([pointCloud])
 
 def FScore(organ, path, threshold, modelType):
+    """Computes the F score, accuarcy, precision, and recall for a model
+       on a given organ. Uses the validation data. 
+
+    Args:
+        organ (str): the organ to get the F score for
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        threshold (float) : the cutoff for deciding if a pixel is 
+            an organ (assigned a 1) or not (assigned a 0)
+        modelType (str): the type of model
+
+    Returns:
+        f_Score (float): (2 * precision * recall) / (precision + recall)
+        recall (float): truePositives / (truePositives + falseNegatives)
+        precision (float): truePositives / (truePositives + falsePositives)
+        accuracy (float): (truePositives + trueNegatives) / allPixels
+    """
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -473,6 +536,21 @@ def FScore(organ, path, threshold, modelType):
     return F_Score, recall, precision, accuracy
 
 def HaussdorffDistance(organ, path, threshold, modelType):
+    """Determines the 95th percentile Haussdorff distance for a model 
+       with a given organ.
+
+    Args:
+        organ (str): the organ to get the Haussdorff distance for
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        threshold (float): the cutoff for deciding if a pixel is 
+            an organ (assigned a 1) or not (assigned a 0)
+        modelType (str): the type of model
+
+    Returns:
+        float: 95th percentile Haussdorff distance
+
+    """
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
 
@@ -514,7 +592,18 @@ def HaussdorffDistance(organ, path, threshold, modelType):
 
 
 def GetEvalData(organ, path, threshold, modelType):
-    #makes a text file containing the hyperparamters of the model, the Fscore data, and the 95th percentile Haussdorff distance
+    """Creates a text file containing the hyperparameters of the model, 
+       the F score data, and the 95th percentile Haussdorff distance.
+
+    Args:
+        organ (str): the organ to get evaluation data for 
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+        threshold (float): the cutoff for deciding if a pixel is 
+            an organ (assigned a 1) or not (assigned a 0)
+        modelType (str): the type of model
+
+    """
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
@@ -547,6 +636,17 @@ def GetEvalData(organ, path, threshold, modelType):
     return F_Score, recall, precision, accuracy, haussdorffDistance
 
 def PercentStats(organ, path):
+    """Saves lists of the area and the number of contour points at each percentage 
+       through a contour. Saves the max, min, and average area and number of contour 
+       points at each percentage through the contour. Gets the data from patient 
+       data sorted into the good contours list.
+
+    Args:
+        organ (str): the organ to get evaluation data for 
+        path (str): the path to the directory containing organogenesis folders 
+            (Models, Processed_Data, etc.)
+
+    """
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
