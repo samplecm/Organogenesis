@@ -216,7 +216,7 @@ def BestThreshold(organ, path, modelType, testSize=500):
         path (str): the path to the directory containing organogenesis folders 
             (Models, Processed_Data, etc.)
         modelType (str): the type of model
-        testSize (str, int) = the number of images to test with for each threshold
+        testSize (str, int): the number of images to test with for each threshold
 
     """
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
