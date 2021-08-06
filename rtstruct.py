@@ -54,7 +54,7 @@ class RTStruct:
         if len(self.series_data) != len(contours):
                 raise RTStruct.ROIException(
                     "Contour must have the save number of layers (In the 3rd dimension) as input series. " +
-                    f"Expected {len(self.series_data)}, got {len(contour)}")
+                    f"Expected {len(self.series_data)}, got {len(contours)}")
 
         return True
 

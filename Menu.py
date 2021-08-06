@@ -96,7 +96,7 @@ def main():
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
 
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"HN1004",path = None, modelType = "multiresunet", thresholdList = [0.02], withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"HN1004",path = None, modelType = "unet", thresholdList = [0.8], withReal=True, tryLoad=False) 
         
     elif task == 3:
         Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "multiresunet", onlyMasks=False, onlyBackground=False)

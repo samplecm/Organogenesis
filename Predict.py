@@ -14,8 +14,6 @@ import DicomParsing
 import Test
 import DicomSaving
 
-
-
 def GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad=True, plot=True):
     """Uses a pre trained model to predict contours for a given organ. Saves 
        the contours to the Predictions_Patients folder in a binary file. 
@@ -179,13 +177,11 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
                         existingContoursList.append(y)
                         existingContoursList.append(z)
 
-    DicomSaving.SaveToDICOM(patientName, organ, path, contours)
-
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
     return contoursList, existingContoursList, contours, existingContours     
 
-def GetMultipleContours(organList, patientName, path, thresholdList, modelType, withReal = True, tryLoad=True, plot=True): 
+def GetMultipleContours(organList, patientName, path, thresholdList, modelType, withReal = True, tryLoad=True, plot=True, save=True): 
     """Calls the GetContours function to predict contours for each organ 
        in organList using a pretrained model and then plots all of the 
        predicted contours.
@@ -204,7 +200,9 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelType, 
             defaults to True
         tryLoad (bool): True to try to load previously processed contours to 
             save time, defaults to True
-        plot (bool) True to plot predicted contours, defaults to True
+        plot (bool): True to plot predicted contours, defaults to True
+        save (bool): True to save predicted contours to a dicom file,
+            defaults to True
 
     Returns:
         contours (list): a list of lists. Each item is a list 
@@ -218,14 +216,20 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelType, 
 
     contours = []
     existingContours = []
+    contoursList = []
 
     for i, organ in enumerate(organList): 
 
         combinedContours = GetContours(organ,patientName,path, modelType = modelType, threshold = thresholdList[i], withReal=True, tryLoad=False, plot = False) 
+        contoursList.append(combinedContours[2])
         contours = contours + combinedContours[2]
         existingContours = existingContours + combinedContours[3]
 
-    Test.PlotPatientContours(contours, existingContours)
+    if save == True:
+        DicomSaving.SaveToDICOM(patientName, organList, path, contoursList)
+
+    if plot == True: 
+        Test.PlotPatientContours(contours, existingContours)
 
     return contours, existingContours
 

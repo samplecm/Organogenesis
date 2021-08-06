@@ -545,10 +545,10 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
             #remove the contour points for the interpolated slice
             if len(slice) > 0:
                 if round(slice[0][2],2) == zValue:
-                    contours.remove(slice)
+                    index = contours.index(slice)
+                    #add the interpolated contour points
+                    contours[index] = interpolatedPointsList
                     break  
-        #add the interpolated contour points
-        contours.append(interpolatedPointsList)
 
     return contours
 
@@ -763,44 +763,3 @@ def GetPointsAtZValue(contours, zValue):
                 break
 
     return pointsList
-
-def ContourOrientation(organ, patientName, path, threshold, contours):
-    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
-        path = pathlib.Path(__file__).parent.absolute() 
-
-    #contours = Predict.GetOriginalContours(organ, patientName, path)[0]
-
-    #contours = Predict.GetContours(organ, patientName, path, threshold, withReal = True, tryLoad = False, plot = False)[2]
-
-    for slice in contours:
-        area = 0
-
-        if len(slice) > 0:
-            zValue = slice[0][2]
-            pointsList = GetPointsAtZValue(contours, zValue)
-            print(slice[0][2])
-
-            for i in range(len(pointsList) - 1):
-                area += (pointsList[i+1][0] - pointsList[i][0]) * (pointsList[i+1][1] + pointsList[i][1])
-
-            print(area)
-
-            if area < 0:
-                print(slice[0][2])
-                pointsList.reverse()
-                area = 0
-                for i in range(len(pointsList) - 1):
-                    area += (pointsList[i+1][0] - pointsList[i][0]) * (pointsList[i+1][1] + pointsList[i][1])
-                print("New Area")
-                print(area)
-
-                newSlice = []
-
-                for point in pointsList:
-                    newSlice.append([point[0],point[1],zValue])
-                index = contours.index(slice)
-                contours[index] = newSlice
-                #contours.remove(slice)
-                #contours.append(newSlice)
-
-    return contours

@@ -92,8 +92,7 @@ def GetTrainingData(filesFolder, organ, preSorted, path):
             #get the RTSTRUCT dicom file and get patient 's CT scans: 
             for fileName in patient:
                 if "STRUCT" in fileName:
-                    structFile = fileName  
-            print(structFile)         
+                    structFile = fileName         
             structsMeta = dcmread(structFile).data_element("ROIContourSequence")
             structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
             #add to dictionary if structureindex is not 1111 (error code)
