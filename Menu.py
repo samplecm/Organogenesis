@@ -136,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model", type=float, default=None, nargs = '+')
     parser.add_argument("--contoursWithReal", help="True/False. In GetContours, there is an option to plot predicted contours alongside the DICOM files manually contoured ones.", default=False , action='store_true')
     parser.add_argument("--loadContours", help="True/False. If the contours have already been created previously, tryLoad will attempt to load the processed data to save time.", default=False, action='store_true')
-    
+    parser.add_argument("--saveContours", help="True/False. Specify whether or not you would like the predicted contours saved to a DICOM file. True to save, False not to. ", default=True, action='store_true')
 
 
     args = parser.parse_args()
@@ -293,7 +293,12 @@ if __name__ == "__main__":
                             break
                     except KeyboardInterrupt:
                         quit
-                    except: pass    
+                    except: pass       
+            else: 
+                thresList = thres
+            for i, threshold in enumerate(thresList):
+                thresList[i] = float(threshold)
+
             modelType = args.modelType
             if (modelType == None):
                 while True:
@@ -303,16 +308,14 @@ if __name__ == "__main__":
                         break    
                     except KeyboardInterrupt:
                         quit()
-                    except: pass     
-            else: 
-                thresList = thres
-            for i, threshold in enumerate(thresList):
-                thresList[i] = float(threshold)
+                    except: pass  
+
+            save = args.saveContours
             tryLoad = args.loadContours
             withReal = args.contoursWithReal   
             path = args.dataPath    
             
-            combinedContours = Predict.GetMultipleContours(organsList,patient,path, modelType = modelType, thresholdList = thresList, withReal=True, tryLoad=False) 
+            combinedContours = Predict.GetMultipleContours(organsList,patient,path, modelType = modelType, thresholdList = thresList, withReal=withReal, tryLoad=tryLoad, save=save) 
 
 
         elif args.function == "BestThreshold":

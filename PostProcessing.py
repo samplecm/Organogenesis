@@ -206,9 +206,9 @@ def FixContours(orig_contours):
             at a specific z value 
 
     """
-    #orig_contours is currently in a ridiculous nested data structure. so fix it first. 
-    maxLength = 0
 
+    #raise ContourPredictionError if no contour points are predicted
+    maxLength = 0
     for slice in orig_contours: 
         if len(slice) > maxLength:
             maxLength = len(slice)
@@ -216,6 +216,7 @@ def FixContours(orig_contours):
     if maxLength == 0:
         raise ContourPredictionError
 
+    #orig_contours is currently in a ridiculous nested data structure. so fix it first. 
     contours = []
     for plane in orig_contours:
         planePoints = []
