@@ -21,7 +21,7 @@ from Dataset import CTDataset
 import albumentations as A 
 import subprocess
 
-def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType):
+def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=False, preSorted=False):
     """Trains a model for predicting contours on a given organ. Saves the model 
        and loss history after each epoch. Stops training after a given number of
        epochs or when the validation loss has decreased by less than 0.001 for 
@@ -51,7 +51,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
         filesFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), patientsPath)
         dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath) #this gives the absolute folder reference of the datapath variable defined above
         if processData:
-            DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
+            DicomParsing.GetTrainingData(filesFolder, organ,path, sortData, preSorted) #go through all the dicom files and create the images
             print("Data Processed")
         
     else: 
@@ -68,14 +68,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
                 loadModel = False 
                 modelErrorMessage = "Model directory was not found in the provided path. Model will not be loaded for training. A new model will be created in the directory.\n \
                     press enter to continue"
-                while True: #wait for user input    
-                    try:
-                        input = input(modelErrorMessage)
-                        if input == "":
-                            break
-                    except KeyboardInterrupt:
-                        quit()    
-                    except: pass   
+                
             
         #Furthermore, if processData is false, then there must exist the Processed_Data folder
         if not processData:
@@ -103,7 +96,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
             shutil.copy(folderScriptPath, path)
             os.chdir(path)
             subprocess.call(['sh', './FolderSetup.sh'])                 
-            DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
+            DicomParsing.GetTrainingData(filesFolder, organ, path, preSorted, path) #go through all the dicom files and create the images
             print("Data Processed")
 
     #See if cuda is available, and set the device as either cuda or cpu if is isn't available
