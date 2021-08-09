@@ -17,7 +17,7 @@ from fastDamerauLevenshtein import damerauLevenshtein
     
 #Want to have a function that checks for a structure in patients' structure sets, and obtains the contours
 #if preSorted = True, that means that they are already sorted lists indicating whether the contour is good or bad (no need to plot) 
-def GetTrainingData(filesFolder, organ, preSorted, path):
+def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
     """Processes the dicom file data and saves it. CT images, masks, and z values 
        are saved for the training and validation data. 10% of patients with good contours 
        are saved to the validation data set. CT images are saved for the testing data.
@@ -54,11 +54,14 @@ def GetTrainingData(filesFolder, organ, preSorted, path):
     #Create a dictionary for patients and their corresponding matched organ, and a list for unmatched patients. All the ones with matching organs can be used for training
     patientStructuresDict = {}
     unmatchedPatientsList = []
+    if path != None:
+        preSorted = False #if path is given, assume it doesn't have the normal folder structure.
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
 
     if preSorted:
+ 
         with open(os.path.join(path, "Processed_Data/Sorted Contour Lists/" + organ + " Good Contours.txt"), "rb") as fp:
             goodContoursList = pickle.load(fp)
 
@@ -116,28 +119,28 @@ def GetTrainingData(filesFolder, organ, preSorted, path):
             i += 1
     else:
         displayString += "Matching structures found for all patients\n"
-        displayString += "------------------------------------------\n" 
+    displayString += "------------------------------------------\n" 
     if (preSorted == True):
         displayString += "Patients with a good contour: \n"
     else: 
         displayString += "Patients with a corresponding structure: \n"
-        displayString += "-------------------------------------------\n"
+    displayString += "-------------------------------------------\n"
     i = 1
     for data in patientStructuresDict:
         displayString += str(i) + ". " + data + ": " + patientStructuresDict[data][0] + "\n"
         i += 1
     print(displayString) 
-    #Wait for input, this just tells the user how many patients actually had that contour for training and asks if they want to proceed:
-    while True:
-        try:
-            cont = input("Continue? (Y/N)")
-            if (cont.lower() == "y"):
-                break
-            if cont.lower() == "n":
-                quit()
-        except KeyboardInterrupt:
-            quit()
-        except: pass   
+    #Unnecessary to wait after listing patients? 
+    # while True:
+    #     try:
+    #         cont = input("Continue? (Y/N)")
+    #         if (cont.lower() == "y"):
+    #             break
+    #         if cont.lower() == "n":
+    #             quit()
+    #     except KeyboardInterrupt:
+    #         quit()
+    #     except: pass   
     #Now loop over patients, saving image data for each if they have a structure
     for p in range(len(patientFolders)):
         patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
@@ -302,7 +305,7 @@ def GetTrainingData(filesFolder, organ, preSorted, path):
 
         #So some of the contoured organs are incomplete or just not good, and so you don't want to use for training. So what this is doing now is plotting every contour so that you can then decide whether or not to use it for training.
         #only need to plot the contours if they have not been sorted yet 
-        if (preSorted == False):
+        if sortData == True and preSorted == False:
             print("Plotting")
             #Here we plot a 3d image of the pointcloud from the list of masks. 
             #First need to convert the masks to contours: 
@@ -321,7 +324,7 @@ def GetTrainingData(filesFolder, organ, preSorted, path):
                 except KeyboardInterrupt:
                     quit()
                 except: pass  
-        #always want to save the CTs and masks of the good contours 
+        #always want to save the CTs and masks of the good contours if its been presorted already or sortdata is not selected.
         else: 
             save = True
 

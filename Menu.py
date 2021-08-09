@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 #local dependencies:
-from numpy.core.fromnumeric import shape
 import DicomParsing
 import Train
 import Test
@@ -90,7 +89,7 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(chosenOARs[0], 35, 1e-3, path=None, processData=True, loadModel=False, preSorted=False, modelType = "MultiResUNet")
+        Train.Train(chosenOARs[0], 35, 1e-3, path="/media/calebsample/Data/patients", processData=True, loadModel=True, modelType = "UNet", sortData=False, preSorted=False)
         #Test.Best_Threshold(OARs[chosenOAR],400)
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
 
@@ -128,13 +127,14 @@ if __name__ == "__main__":
     parser.add_argument("--processData", help="True or False. True if patient DICOM data has not already been processed into training/validation/test folders", default=False, action='store_true')
     parser.add_argument("--loadModel", help="True/False. True if a pre-existing model is to be loaded for continuing of training.", default=False, action='store_true')
     parser.add_argument("--dataPath", help="If data is not prepared in patient_files folder, specify the path to the directory containing all patient directories.",type=str, default=None)
-    parser.add_argument("--preSorted", help="Specify whether or not patient data has already been sorted by \"good\" and \"bad\" contours", default=False, action='store_true')
+    parser.add_argument("--preSorted", help="Only optional if the \'presorted\' argument is applied. Specify whether or not patient data has already been sorted by \"good\" and \"bad\" contours", default=False, action='store_true')
     parser.add_argument("--modelType", help="Specify the model type. UNet or MultiResUNet", default=None, type=str)
     #GetContours parameters:
     parser.add_argument("--predictionPatientName", help= "Specify the name of the patient in the Predictions_Patient folder that you wish to predict contours for. Alternatively, supply the full path a patient's folder.",type=str, default=None)
     parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model", type=float, default=None, nargs = '+')
     parser.add_argument("--contoursWithReal", help="True/False. In GetContours, there is an option to plot predicted contours alongside the DICOM files manually contoured ones.", default=False , action='store_true')
-    parser.add_argument("--loadContours", help="True/False. If the contours have already been created previously, tryLoad will attempt to load the processed data to save time.", default=False, action='store_true')
+    parser.add_argument("--loadContours", help="True/False. If predicted contours for a patient have been predicted and processed previously, tryLoad will attempt to load the processed data to save time.", default=False, action='store_true')
+    parser.add_argument("--sortData", help="True/False. True if the patient list is to be visually inspected for quality assurance of contours to process for training.", default=False, action='store_true')
     
 
 
@@ -264,9 +264,11 @@ if __name__ == "__main__":
             processData = args.processData
             loadModel = args.loadModel
             dataPath = args.dataPath #If dataPath is None, then the program uses the data in the patient_files folder. If it is a path to a directory, data will be processed in this directory. 
+            sortData = args.sortData
             preSorted = args.preSorted
 
-            Train.Train(organsList[0], numEpochs, lr, dataPath, processData, loadModel, preSorted, modelType)
+
+            Train.Train(organsList[0], numEpochs, lr, dataPath, processData, loadModel, modelType, sortData, preSorted)
             bestThreshold = Test.BestThreshold(organsList[0], dataPath, modelType = modelType, testSize = 400)
 
             Test.TestPlot(organsList[0], dataPath, threshold=bestThreshold, modelType = modelType)  
