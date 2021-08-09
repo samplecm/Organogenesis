@@ -42,6 +42,18 @@ def SaveToDICOM(patientName, organList, path, contoursList):
     #load existing RT Struct
     rtStruct = RTStructBuilder.create_from(dicom_series_path = patientPath, rt_struct_path = structPath)
 
+    #create a list of colors for the contours 
+    colorList= [
+        [255, 0, 255], #magenta
+        [0, 235, 235], #teal
+        [255, 255, 0], #yellow
+        [255, 0, 0], #red
+        [255, 175, 0], #orange
+        [160, 32, 240], #purple
+        [255, 140, 190], #pink
+        [0, 0, 255], #blue
+    ]
+
     for i, contours in enumerate(contoursList):
         #reshape contours so that it is compatible with dicom files
         newContours = []
@@ -61,8 +73,18 @@ def SaveToDICOM(patientName, organList, path, contoursList):
             if str(element.ROIName).lower() == organList[i].lower():
                 ROIName = organList[i] + "_1"
 
+        #assign the contour a color
+        if i < len(colorList):
+            organColor = colorList[i]
+        else: 
+            organColor = colorList[i-len(colorList)]
+
+        #make the body contour green by convention
+        if organList[i].lower() == "body":
+            organColor = [0,255,0] 
+
         #add the ROI
-        rtStruct.add_roi(contours = contours, color=[0, 255, 0], name=ROIName)
+        rtStruct.add_roi(contours = contours, color = organColor, name = ROIName)
 
     #save the ROI to a new struct file
     newStructFile = structFile.split(".dcm")[0] + "_1"

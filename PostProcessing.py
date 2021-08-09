@@ -521,7 +521,6 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
 
     slicesToFix = list(set(UnreasonableArea(contours, organ, path) + MissingSlices(contours, sliceThickness) + UnreasonableNumPoints(contours, organ, path)))
 
-    print(slicesToFix)
     contourZValues = GetZValues(contours)
     maxZValue = max(contourZValues)
     minZValue = min(contourZValues)
