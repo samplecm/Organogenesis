@@ -37,9 +37,11 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
             validation folders, False if they are already processed
         loadModel (bool): True to load a model and continue training, 
             False to train a new model
+        modelType (str): the type of model to be used in training 
+        sortData (bool): True to visually inspect contours for quality 
+            assurance, False to process data without looking at contours
         preSorted(bool): True to use presorted good/bad/no contour lists, 
             False to display contours for each patient and sort manually
-        modelType (str): the type of model to be used in training 
 
     """
     #First extract patient training data and process it for each, saving it into Processed_Data folder

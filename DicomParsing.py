@@ -334,16 +334,16 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
                 if zSlice < 10:
                     sliceText = "0" + str(zSlice)
                 if preSorted == True: 
-                    #if patientFolders[p] not in validationPatientsList:
-                    #    with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                    #        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                    #    with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
-                    #        pickle.dump(contourOnPlane[zSlice], fp)
-                    #else: 
-                    with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                    with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump(contourOnPlane[zSlice], fp) 
+                    if patientFolders[p] not in validationPatientsList:
+                        with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                        with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
+                            pickle.dump(contourOnPlane[zSlice], fp)
+                    else: 
+                        with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+                        with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump(contourOnPlane[zSlice], fp) 
                 else: 
                     if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
                         with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
