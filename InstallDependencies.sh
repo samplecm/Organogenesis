@@ -10,3 +10,4 @@ pip install pytorch
 pip install SSIM-PIL
 pip install albumentations
 pip install scipy
+pip install plotly

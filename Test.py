@@ -222,7 +222,7 @@ def BestThreshold(organ, path, modelType, testSize=500):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for training: " + device.type)
+    print("Device being used: " + device.type)
     print("Determining most accurate threshold...")
     if modelType.lower() == "unet":
         model = Model.UNet()
