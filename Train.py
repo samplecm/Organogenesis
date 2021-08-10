@@ -103,7 +103,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
 
     #See if cuda is available, and set the device as either cuda or cpu if is isn't available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for training: " + device.type)
+    print("\nDevice being used for training: " + device.type)
     #Now define or load the model and optimizer: 
     epochLossHistory = []
     trainLossHistory = []
