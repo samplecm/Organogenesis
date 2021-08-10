@@ -82,7 +82,7 @@ def FilterBackground(image, threshold):
             an organ (assigned a 1) or not (assigned a 0)
 
     Returns:
-        filteredImage (2D numpoy array): the binary mask of the background
+        filteredImage (2D numpy array): the binary mask of the background
 
     """
 
