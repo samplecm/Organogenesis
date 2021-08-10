@@ -40,10 +40,10 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
         existingContoursList (list): list of contour points from the 
             existing contours
         contours (list): a list of lists. Each item is a list 
-            of the predicted contour points [x,y,Z]
+            of the predicted contour points [x,y,z]
             at a specific z value
         existingcontours (list): a list of lists. Each item is a list 
-            of the existing contour points [x,y,Z]
+            of the existing contour points [x,y,z]
             at a specific z value
 
     """
@@ -203,10 +203,10 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelType, 
 
     Returns:
         contours (list): a list of lists. Each item is a list 
-            of the predicted contour points [x,y,Z]
+            of the predicted contour points [x,y,z]
             at a specific z value
         existingcontours (list): a list of lists. Each item is a list 
-            of the existing contour points [x,y,Z]
+            of the existing contour points [x,y,z]
             at a specific z value
 
     """
@@ -237,7 +237,7 @@ def GetOriginalContours(organ, patientName, path):
 
     Returns:
         existingcontours (list): a list of lists. Each item is a list 
-            of the existing contour points [x,y,Z]
+            of the existing contour points [x,y,z]
             at a specific z value
         existingContoursList (list): a list of contour points from the 
             existing contours
