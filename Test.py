@@ -67,6 +67,8 @@ def TestPlot(organ, path, threshold, modelType):
         y = y.cpu()
         x = x.numpy()
         y = y.numpy()
+        print(np.amax(y))
+        print(np.amin(y))
         prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
 
         maskOnImage = MaskOnImage(x[0,0,:,:], prediction) #this puts the mask ontop of the CT image
@@ -220,8 +222,8 @@ def BestThreshold(organ, path, modelType, testSize=500):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("\nDevice being used for training: " + device.type)
-    print("\nDetermining the most accurate threshold...")
+    print("Device being used: " + device.type)
+    print("Determining most accurate threshold...")
     if modelType.lower() == "unet":
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
@@ -250,7 +252,7 @@ def BestThreshold(organ, path, modelType, testSize=500):
     thresholds = np.linspace(0.05,0.9,11)
     
     for thres in thresholds:
-        print("\nChecking Threshold: %0.3f"%(thres))
+        print("Checking Threshold: %0.3f"%(thres))
         d = 0
         #get the accuracy and F score for the current threshold value
         thresAccuracy = []
@@ -465,7 +467,7 @@ def FScore(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("\nDevice being used for computing F Score: " + device.type)
+    print("Device being used for computing F Score: " + device.type)
     if modelType.lower() == "unet":
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
@@ -477,7 +479,7 @@ def FScore(organ, path, threshold, modelType):
     dataFolder = os.path.join(path, dataPath)
     dataFiles = sorted(os.listdir(dataFolder))
     d = 0
-    print('\nCalculating Fscore Statistics')
+    print('Calculating Fscore Statistics')
     TP = 0
     FP = 0
     FN = 0
