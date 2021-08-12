@@ -182,7 +182,7 @@ class ContourPredictionError(Exception):
     """
 
     def __init__(self, message = "Contour Prediction Error. No contour points were predicted by the model. Please check that you are using the right threshold and try again."):
-        """Instantion method of ContourPredictionError. 
+        """Instantiation method of ContourPredictionError. 
 
         Args: 
             message (string): the message to be printed if the contour 
@@ -295,7 +295,7 @@ def FixContours(orig_contours):
     
 
 def InterpolateContour(contours1, contours2, distance):
-    """Creates a lineraly interpolated contour slice between contours1 and contours2. 
+    """Creates a linearly interpolated contour slice between contours1 and contours2. 
 
     Args:
         contours1 (list): the first slice to be interpolated with. 
@@ -513,7 +513,7 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
 
     Returns:
         contours (list): a list of lists. Each item is a list 
-            of the predicted and interplated contour points 
+            of the predicted and interpolated contour points 
             (x, y, and z values) at a specific z value
 
     """
@@ -576,7 +576,7 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
 def UnreasonableArea(contours, organ , path):
     """Determines which slices in the predicted contour have an unreasonable area.
        Unreasonable area is defined as less than the minimum area or more than the
-       maximum area at a pecentage through a contour. Based on the stats from the 
+       maximum area at a percentage through a contour. Based on the stats from the 
        PercentStats function. 
 
     Args:
