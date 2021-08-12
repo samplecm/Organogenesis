@@ -146,7 +146,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
 
         #creates the training dataset 
         #set transform = transform for data augmentation, None for no augmentation
-        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
+        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = transform)
 
         #creates the training dataloader 
         train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)

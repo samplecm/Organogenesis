@@ -319,11 +319,14 @@ if __name__ == "__main__":
 
         if modelType is not None:
             if isinstance(modelType, list):
-                for model in modelType: 
-                    if model.lower() != "unet" and model.lower() != "multiresunet":
-                        modelType = None
-                        break
-            elif modelType.lower90 != "unet" and modelType.lower() != "multiresunet":
+                if len(modelType) != len(organsList) and len(modelType) != 1: #make sure the correct number of model types were given 
+                    modelType = None
+                else: 
+                    for model in modelType: 
+                        if model.lower() != "unet" and model.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                            modelType = None
+                            break
+            elif modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
                 modelType = None
 
         if (modelType == None):
@@ -331,11 +334,19 @@ if __name__ == "__main__":
                 try:
                     modelType = input("\nPlease specify the model type (UNet or MultiResUNet). If predicting with multiple organs, please enter the model types in the same order as the organs separated by a space. If a single model type will be used for all organs, just enter it once. \n >")      
                     if " " in modelType:
+                        modelCheck = True
                         modelTypeList = list(modelType.split(" "))
+                        for model in modelTypeList: 
+                            if model.lower() != "unet" and model.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                                modelCheck = False
+                                break
+                        if modelCheck == True:
+                            if len(modelTypeList) == len(organsList) or len(modelTypeList) == 1: #make sure the correct number of model types were given
+                                break
                     else:
-                        modelTypeList = [modelType]
-                    if len(modelTypeList) == len(organsList) or len(modelTypeList) == 1:
-                        break
+                        if modelType == "unet" or modelType.lower() == "multiresunet": #make sure that the model is either unet or multiresunet
+                            modelTypeList = [modelType]
+                            break
                 except KeyboardInterrupt:
                     quit
                 except: pass 
@@ -343,21 +354,6 @@ if __name__ == "__main__":
             modelTypeList = modelType
         else:
             modelTypeList = [modelType]
-
-        if len(modelTypeList) != len(organsList) and len(modelTypeList) != 1:
-            while True:
-                try:
-                    modelType = input("\nInvalid number of model types were supplied. Please specify the model type (UNet or MultiResUNet). If predicting with multiple organs, please enter the model types in the same order as the organs separated by a space. If a single model type will be used for all organs, just enter it once. \n >")    
-                    if " " in modelType:
-                        modelType = modelType.split(" ")
-                        modelTypeList = list(modelType.split(" "))
-                    else:
-                        modelTypeList = [modelType]
-                    if len(modelTypeList) == len(organsList) or len(modelTypeList) == 1:
-                        break
-                except KeyboardInterrupt:
-                    quit
-                except: pass 
 
         #if only one model type is being used for predicting on multiple organs 
         if len(organsList) > 1 and len(modelTypeList) == 1:
