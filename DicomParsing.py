@@ -481,7 +481,7 @@ def FindStructure(metadata, organ, invalidStructures = []):
         metadata (DataElement): the data contained in the 
             StructureSetROISequence of the patient's dicom file
         organ (str): the organ to find the matching structure for
-        invaidStructures (list): a list of strctures that the matching 
+        invaidStructures (list): a list of structures that the matching 
             structure cannot be, defaults to an empty list
 
     Returns: 

@@ -134,7 +134,7 @@ def Crop(tensor, targetTensor):
     """Crops tensor to the size of targetTensor. 
 
     Args: 
-        tesnor (2D tensor): the tensor to be cropped
+        tensor (2D tensor): the tensor to be cropped
         targetTensor (int): the tensor of the desired size
 
     Returns:
@@ -160,7 +160,7 @@ class MultiResBlock(nn.Module):
         Args: 
             inC (int): input channels, the number of channels of the inputted tensor
             outC (int): output channels, the number of channels of the outputted tensor
-            alpha (float): scalar cefficient which can be adjusted to change the 
+            alpha (float): scalar coefficient which can be adjusted to change the 
                 number of parameters in the model
 
         """

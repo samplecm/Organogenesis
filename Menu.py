@@ -22,7 +22,7 @@ organOps ={
     "Right Parotid": re.compile(r"ri?g?h?t?(-|_| )(par)o?t?i?d?"),
     "Left Submandibular": re.compile(r"le?f?t(-|_| )subma?n?d?i?b?u?l?a?r?"),
     "Right Submandibular": re.compile(r"ri?g?h?t?(-|_| )subma?n?d?i?b?u?l?a?r?"),
-    "Brain Stem": re.compile(r"b?r?a?i?n?(-|_| )stem"),
+    "Brainstem": re.compile(r"b?r?a?i?n?stem"),
     "Larynx": re.compile(r"lary?n?(x|g?o?p?h?a?r?y?n?x?)?"),
     "All": re.compile(r"all")
 }
@@ -33,7 +33,7 @@ functionOps = [
     "BestThreshold",
     "GetEvalData",
     "PlotMasks",
-    "FScore"
+    "GetEvalData"
 ]
 
 def main():
@@ -121,9 +121,9 @@ if __name__ == "__main__":
         description="Organogenesis: an open source program for autosegmentation of medical images"
     )
     parser.add_argument('-o', "--organs", help="Specify the organ(s) that a model is to be trained to contour, or that a model is to be used for predicting/generating contours. Include a single space between organs. \
-        Please choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \n left-submandibular, \n right-submandibular, \n brain-stem, \n larynx/laryngopharynx", nargs = '+', default=None, type = str)
+        Please choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \n left-submandibular, \n right-submandibular, \n brainstem, \n larynx/laryngopharynx", nargs = '+', default=None, type = str)
     parser.add_argument('-f', "--function", help = "Specify the function which is desired to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
-        \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"FScore\": calculate the F score for the given organ's model, \
+        \"GetContours\": Obtain predicted contour point clouds for a patient, \"BestThreshold\": find the best threhold for maximizing the models F score, \"GetEvalData\": calculate the F score, recall, precision, accuracy and 95th percentile Haussdorff distance for the given organ's model, \
         \"PlotMasks\": Plot 2d CTs with both manually drawn and predicted masks for visual comparison", default=None, type=str)
     #Training parameters:    
     parser.add_argument("--lr", help="Specify the learning rate desired for model training.", default=None, type=float)
@@ -132,14 +132,14 @@ if __name__ == "__main__":
     parser.add_argument("--loadModel", help="True/False. True if a pre-existing model is to be loaded for continuing of training.", default=False, action='store_true')
     parser.add_argument("--dataPath", help="If data is not prepared in patient_files folder, specify the path to the directory containing all patient directories.",type=str, default=None)
     parser.add_argument("--preSorted", help="Only optional if the \'presorted\' argument is applied. Specify whether or not patient data has already been sorted by \"good\" and \"bad\" contours", default=False, action='store_true')
-    parser.add_argument("--modelType", help="Specify the model type. UNet or MultiResUNet", default=None, type=str)
+    parser.add_argument("--modelType", help="Specify the model type. UNet or MultiResUNet", type=str, default=None, nargs = '+')
     #GetContours parameters:
     parser.add_argument("--predictionPatientName", help= "Specify the name of the patient in the Predictions_Patient folder that you wish to predict contours for. Alternatively, supply the full path a patient's folder.",type=str, default=None)
     parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model. If predicting with multiple organs, please enter the thresholds in the same order as the organs separated by a space", type=float, default=None, nargs = '+')
     parser.add_argument("--contoursWithReal", help="True/False. In GetContours, there is an option to plot predicted contours alongside the DICOM files manually contoured ones.", default=False , action='store_true')
     parser.add_argument("--loadContours", help="True/False. If predicted contours for a patient have been predicted and processed previously, tryLoad will attempt to load the processed data to save time.", default=False, action='store_true')
     parser.add_argument("--sortData", help="True/False. True if the patient list is to be visually inspected for quality assurance of contours to process for training.", default=False, action='store_true')
-    
+    parser.add_argument("--dataAugmentation", help="True/False. True to turn on data augmentation for training, False to use non-augmented CT images.", default=False, action='store_true')
 
 
     args = parser.parse_args()
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     if not functionMatch:
         while True: #get user input 
             try:
-                functionSelection = input("\nInvalid function or no function specified. Please specify the function to be performed. Options include: \n\"Train\": to train a model for predicting the specified organ, \n\"GetContours\": Obtain predicted contour point clouds for a patient, \n\"BestThreshold\": find the best threhold for maximizing the model's F score, \n\"FScore\": calculate the F score for the given organ's model, \n\"PlotMasks\": plot 2d CTs with both manually drawn and predicted masks for visual comparison \n >")
+                functionSelection = input("\nInvalid function or no function specified. Please specify the function to be performed. Options include: \n\"Train\": to train a model for predicting the specified organ, \n\"GetContours\": Obtain predicted contour point clouds for a patient, \n\"BestThreshold\": find the best threhold for maximizing the model's F score, \n\"GetEvalData\": calculate the F score, recall, precision, accuracy and 95th percentile Haussdorff distance for the given organ's model, \n\"PlotMasks\": plot 2d CTs with both manually drawn and predicted masks for visual comparison \n >")
                 for function in functionOps:
                     if (function == functionSelection):
                         args.function = functionSelection
@@ -257,12 +257,27 @@ if __name__ == "__main__":
                 except: pass  
 
         modelType = args.modelType
+
+        #if multiple model types were provided, chooses the first one
+        if modelType is not None:
+            if isinstance(modelType, list):
+                modelType = modelType[0]
+                if modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                    modelType = None
+            elif modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                modelType = None
+
         if (modelType == None):
             while True:
                 try:
                     modelType = input("\nPlease specify the model type (UNet or MultiResUNet)\n >")
                     modelType = str(modelType)
-                    break    
+                    if " " in modelType:
+                        modelType = modelType.split(" ")[0]
+                        if modelType.lower() == "unet" or modelType.lower() == "multiresunet":
+                            break
+                    elif modelType.lower() == "unet" or modelType.lower() == "multiresunet":
+                        break  
                 except KeyboardInterrupt:
                     quit()
                 except: pass  
@@ -272,9 +287,9 @@ if __name__ == "__main__":
         dataPath = args.dataPath #If dataPath is None, then the program uses the data in the patient_files folder. If it is a path to a directory, data will be processed in this directory. 
         sortData = args.sortData
         preSorted = args.preSorted
+        dataAugmentation = args.dataAugmentation
 
-
-        Train.Train(organsList[0], numEpochs, lr, dataPath, processData, loadModel, modelType, sortData, preSorted)
+        Train.Train(organsList[0], numEpochs, lr, dataPath, processData, loadModel, modelType, sortData, preSorted, dataAugmentation)
         bestThreshold = Test.BestThreshold(organsList[0], dataPath, modelType = modelType, testSize = 400)
 
         Test.TestPlot(organsList[0], dataPath, threshold=bestThreshold, modelType = modelType)  
@@ -295,17 +310,58 @@ if __name__ == "__main__":
                         break    
                 except KeyboardInterrupt:
                     quit()
-                except: pass  
+                except: pass
+                
         modelType = args.modelType
+        modelTypeList = []
+
+        modelType = args.modelType
+
+        if modelType is not None:
+            if isinstance(modelType, list):
+                if len(modelType) != len(organsList) and len(modelType) != 1: #make sure the correct number of model types were given 
+                    modelType = None
+                else: 
+                    for model in modelType: 
+                        if model.lower() != "unet" and model.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                            modelType = None
+                            break
+            elif modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                modelType = None
+
         if (modelType == None):
             while True:
                 try:
-                    modelType = input("\nPlease specify the model type (UNet or MultiResUNet)\n >")
-                    modelType = str(modelType)
-                    break    
+                    modelType = input("\nPlease specify the model type (UNet or MultiResUNet). If predicting with multiple organs, please enter the model types in the same order as the organs separated by a space. If a single model type will be used for all organs, just enter it once. \n >")      
+                    if " " in modelType:
+                        modelCheck = True
+                        modelTypeList = list(modelType.split(" "))
+                        for model in modelTypeList: 
+                            if model.lower() != "unet" and model.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                                modelCheck = False
+                                break
+                        if modelCheck == True:
+                            if len(modelTypeList) == len(organsList) or len(modelTypeList) == 1: #make sure the correct number of model types were given
+                                break
+                    else:
+                        if modelType == "unet" or modelType.lower() == "multiresunet": #make sure that the model is either unet or multiresunet
+                            modelTypeList = [modelType]
+                            break
                 except KeyboardInterrupt:
-                    quit()
-                except: pass            
+                    quit
+                except: pass 
+        elif isinstance(modelType, list): 
+            modelTypeList = modelType
+        else:
+            modelTypeList = [modelType]
+
+        #if only one model type is being used for predicting on multiple organs 
+        if len(organsList) > 1 and len(modelTypeList) == 1:
+            modelType = modelTypeList[0]
+            modelTypeList = []
+            for organ in organsList:
+                modelTypeList.append(modelType)
+
         thres = args.thres     
         if thres == None:
             organs_wo_bestThres = []
@@ -313,19 +369,35 @@ if __name__ == "__main__":
             for i in range(len(organsList)):#try to load best thresholds for organ and model
                 #initialize size of thres to match organsList
                 thresList.append(None) 
-                try: 
-                    bestThres = pickle.load(open(os.path.join(thresLoadPath, "Models/Model_" + modelType.lower() + "_" + organsList[i].replace(" ", "") + "_Thres.txt"), "rb"))    
-                    thres[-1] = bestThres
-                    print("Best threshold loaded for " + modelType + organsList[i] + " predictions")
+                try:  
+                    bestThresFile = open(str(os.path.join(thresLoadPath, "Models/Model_" + modelTypeList[i].lower() + "_" + organsList[i].replace(" ", "")) + "_Thres.txt"), "r")   
+                    bestThres = bestThresFile.read()
+                    bestThresFile.close()
+                    thresList[-1] = float(bestThres)
+                    print("\nBest threshold of " + str(thresList[i]) + " loaded for " + modelTypeList[i] + " " + organsList[i] + " predictions")
                 except: 
                     pass
             #Now check which ones had best threshold    
 
             for i in range(len(organsList)):
                 if thresList[i] == None:
-                    print("Best threshold has not been determined for " + modelType + " predictions for " + organsList[i] + ". Launching BestThreshold function.")
-                    thresList[i] = Test.BestThreshold(organsList[i], path, modelType, 500)
-
+                    #check to see if there is any validation data
+                    #if there isn't, then best threshold cannot be run and user must input a threshold
+                    dataPath = 'Processed_Data/' + organsList[i] + "_Val/"
+                    dataFolder = os.path.join(thresLoadPath, dataPath)
+                    dataFiles = os.listdir(dataFolder)
+                    if len(dataFiles) > 0:
+                        print("\nBest threshold has not been determined for " + modelTypeList[i] + " " + organsList[i] + " predictions. Launching the BestThreshold function.")
+                        thresList[i] = Test.BestThreshold(organsList[i], path, modelTypeList[i], 500)
+                    else: 
+                        while True:
+                                try:
+                                    thresList[i] = float(input("\nBest threshold could not be found for the " + organsList[i] + " " + modelTypeList[i] + " model. Please specify a threshold to use for predicting \n >"))
+                                    break    
+                                except KeyboardInterrupt:
+                                    quit()
+                                except: pass        
+                        
         elif (len(thres) != len(organsList)):
             while True:
                 try:
@@ -343,75 +415,169 @@ if __name__ == "__main__":
         tryLoad = args.loadContours
         withReal = args.contoursWithReal   
         
-        print(thresList)
-        combinedContours = Predict.GetMultipleContours(organsList,patient,path, modelType = modelType, thresholdList = thresList, withReal=True, tryLoad=False) 
-
+        combinedContours = Predict.GetMultipleContours(organsList,patient,path, modelTypeList = modelTypeList, thresholdList = thresList, withReal=True, tryLoad=False) 
 
     elif args.function == "BestThreshold":
         if len(organsList) > 1:
             print("\nThe best threshold can only be found for one organ at a time. Proceeding with the " + organsList[0])
         path = args.dataPath  
         modelType = args.modelType
+
+        #if multiple model types were provided, chooses the first one
+        if modelType is not None:
+            if isinstance(modelType, list):
+                modelType = modelType[0]
+                if modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                    modelType = None
+            elif modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                modelType = None
+
         if (modelType == None):
             while True:
                 try:
                     modelType = input("\nPlease specify the model type (UNet or MultiResUNet)\n >")
                     modelType = str(modelType)
-                    break    
+                    if " " in modelType:
+                        modelType = modelType.split(" ")[0]
+                        if modelType.lower() == "unet" or modelType.lower() == "multiresunet":
+                            break
+                    elif modelType.lower() == "unet" or modelType.lower() == "multiresunet":
+                        break  
                 except KeyboardInterrupt:
                     quit()
                 except: pass  
+
         Test.BestThreshold(organsList[0], path, modelType, 500)
 
-    elif args.function == "FScore":
+    elif args.function == "GetEvalData":
         if len(organsList) > 1:
-            print("\nThe F score can only be found for one organ at a time. Proceeding with the " + organsList[0])
-        thres = args.thres
-        if thres == None:
-            while True:
-                try:
-                    thres = float(input("\nPlease specify the threshold to be used for contour prediction\n >"))       
-                    break
-                except KeyboardInterrupt:
-                    quit
-                except: pass    
+            print("\nThe evaulation data can only be found for one organ at a time. Proceeding with the " + organsList[0])
+
+        path = args.dataPath 
+        if path == None:
+            thresLoadPath = pathlib.Path(__file__).parent.absolute() 
+        else:
+            thresLoadPath = path
+
         modelType = args.modelType
+
+        #if multiple model types were provided, chooses the first one
+        if modelType is not None:
+            if isinstance(modelType, list):
+                modelType = modelType[0]
+                if modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                    modelType = None
+            elif modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                modelType = None
+
         if (modelType == None):
             while True:
                 try:
                     modelType = input("\nPlease specify the model type (UNet or MultiResUNet)\n >")
                     modelType = str(modelType)
-                    break    
+                    if " " in modelType:
+                        modelType = modelType.split(" ")[0]
+                        if modelType.lower() == "unet" or modelType.lower() == "multiresunet":
+                            break
+                    elif modelType.lower() == "unet" or modelType.lower() == "multiresunet":
+                        break  
                 except KeyboardInterrupt:
                     quit()
                 except: pass  
-        path = args.dataPath  
-        F_Score, recall, precision, accuracy = Test.FScore(organsList[0], path, thres, modelType)    
-        print([F_Score, recall, precision, accuracy])
+
+        thres = args.thres
+        if thres == None:
+            try:  
+                bestThresFile = open(str(os.path.join(thresLoadPath, "Models/Model_" + modelType.lower() + "_" + organsList[0].replace(" ", "")) + "_Thres.txt"), "r")   
+                bestThres = bestThresFile.read()
+                bestThresFile.close()
+                thres = float(bestThres)
+                print("\nBest threshold of " + str(thres) + " loaded for " + modelType + " " + organsList[0] + " predictions")
+            except: 
+                dataPath = 'Processed_Data/' + organsList[i] + "_Val/"
+                dataFolder = os.path.join(thresLoadPath, dataPath)
+                dataFiles = os.listdir(dataFolder)
+                if len(dataFiles) > 0:
+                    print("\nBest threshold has not been determined for " + modelType + " " + organsList[i] + " predictions. Launching the BestThreshold function.")
+                    thres = Test.BestThreshold(organsList[i], path, modelType, 500)
+                else: 
+                    while True:
+                        try:
+                            thres = float(input("\nBest threshold could not be found for the " + organsList[i] + " " + modelType + " model. Please specify a threshold to use for plotting masks \n >"))
+                            break    
+                        except KeyboardInterrupt:
+                            quit()
+                        except: pass  
+                        
+        elif isinstance(thres, list):
+            thres = float(thres[0])
+
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(organsList[0], path, thres, modelType)    
+        print([F_Score, recall, precision, accuracy, haussdorffDistance])
 
     elif args.function == "PlotMasks":
         if len(organsList) > 1:
             print("\nMasks can only be plotted for one organ at a time. Proceeding with the " + organsList[0])
-        thres = args.thres
-        if thres == None:
-            while True:
-                try:
-                    thres = float(input("\nPlease specify the threshold to be used for contour prediction\n >"))       
-                    break
-                except KeyboardInterrupt:
-                    quit
-                except: pass 
+
+        path = args.dataPath 
+        if path == None:
+            thresLoadPath = pathlib.Path(__file__).parent.absolute() 
+        else:
+            thresLoadPath = path
+
         modelType = args.modelType
+
+        #if multiple model types were provided, chooses the first one
+        if modelType is not None:
+            if isinstance(modelType, list):
+                modelType = modelType[0]
+                if modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                    modelType = None
+            elif modelType.lower() != "unet" and modelType.lower() != "multiresunet": #make sure that the model is either unet or multiresunet
+                modelType = None
+
         if (modelType == None):
             while True:
                 try:
                     modelType = input("\nPlease specify the model type (UNet or MultiResUNet)\n >")
                     modelType = str(modelType)
-                    break    
+                    if " " in modelType:
+                        modelType = modelType.split(" ")[0]
+                        if modelType.lower() == "unet" or modelType.lower() == "multiresunet":
+                            break
+                    elif modelType.lower() == "unet" or modelType.lower() == "multiresunet":
+                        break  
                 except KeyboardInterrupt:
                     quit()
                 except: pass  
-        path = args.dataPath 
+
+        thres = args.thres
+        if thres == None:
+            try:  
+                bestThresFile = open(str(os.path.join(thresLoadPath, "Models/Model_" + modelType.lower() + "_" + organsList[0].replace(" ", "")) + "_Thres.txt"), "r")   
+                bestThres = bestThresFile.read()
+                bestThresFile.close()
+                thres = float(bestThres)
+                print("\nBest threshold of " + str(thres) + " loaded for " + modelType + " " + organsList[0] + " predictions")
+            except: 
+                dataPath = 'Processed_Data/' + organsList[i] + "_Val/"
+                dataFolder = os.path.join(thresLoadPath, dataPath)
+                dataFiles = os.listdir(dataFolder)
+                if len(dataFiles) > 0:
+                    print("\nBest threshold has not been determined for " + modelType + " " + organsList[i] + " predictions. Launching the BestThreshold function.")
+                    thres = Test.BestThreshold(organsList[i], path, modelType, 500)
+                else: 
+                    while True:
+                        try:
+                            thres = float(input("\nBest threshold could not be found for the " + organsList[i] + " " + modelType + " model. Please specify a threshold to use for plotting masks \n >"))
+                            break    
+                        except KeyboardInterrupt:
+                            quit()
+                        except: pass    
+                        
+        elif isinstance(thres, list):
+            thres = float(thres[0])
+
         Test.TestPlot(organsList[0], path, modelType = modelType, threshold=thres)  
 
 

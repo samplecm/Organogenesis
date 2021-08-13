@@ -13,8 +13,6 @@ import cv2 as cv
 import DicomParsing
 import Test
 
-
-
 def GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad=True, plot=True):
     """Uses a pre trained model to predict contours for a given organ. Saves 
        the contours to the Predictions_Patients folder in a binary file. 
@@ -180,7 +178,7 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
         Test.PlotPatientContours(contours, existingContours)
     return contoursList, existingContoursList, contours, existingContours     
 
-def GetMultipleContours(organList, patientName, path, thresholdList, modelType, withReal = True, tryLoad=True, plot=True): 
+def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeList, withReal = True, tryLoad=True, plot=True): 
     """Calls the GetContours function to predict contours for each organ 
        in organList using a pretrained model and then plots all of the 
        predicted contours.
@@ -215,8 +213,8 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelType, 
     existingContours = []
 
     for i, organ in enumerate(organList): 
-        print("\nPredicting contours for the " + organ)
-        combinedContours = GetContours(organ,patientName,path, modelType = modelType, threshold = thresholdList[i], withReal=True, tryLoad=False, plot = False) 
+        print("\nPredicting contours for the " + organ + " with the threshold " + str(thresholdList[i]))
+        combinedContours = GetContours(organ,patientName,path, modelType = modelTypeList[i], threshold = thresholdList[i], withReal=True, tryLoad=False, plot = False) 
         contours = contours + combinedContours[2]
         existingContours = existingContours + combinedContours[3]
 

@@ -21,7 +21,7 @@ from Dataset import CTDataset
 import albumentations as A 
 import subprocess
 
-def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=False, preSorted=False):
+def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=False, preSorted=False, dataAugmentation=False):
     """Trains a model for predicting contours on a given organ. Saves the model 
        and loss history after each epoch. Stops training after a given number of
        epochs or when the validation loss has decreased by less than 0.001 for 
@@ -42,7 +42,8 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
             assurance, False to process data without looking at contours
         preSorted(bool): True to use presorted good/bad/no contour lists, 
             False to display contours for each patient and sort manually
-
+        dataAugmentation (bool): True to turn on data augmentation for 
+            training, False to use non-augmented CT images.
     """
     #First extract patient training data and process it for each, saving it into Processed_Data folder
     torch.cuda.empty_cache()
@@ -125,14 +126,18 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
     
     dataFiles = sorted(os.listdir(dataFolder))
 
-    transform = A.Compose ([
-    A.OneOf([A.Perspective(scale=(0.05,0.1), keep_size = True, pad_mode = 0, fit_output = True, p=0.5), A.ElasticTransform(p=0.5, alpha=16, sigma=512*0.05, alpha_affine=512*0.03),
-    #A.GaussNoise(var_limit = 0.05, p = 0.5)
-    ], p =0.5),
-    A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(5, p=0.5)], p=0.5)
-    ])
+    #set transform = transform for data augmentation, None for no augmentation
+    if dataAugmentation == True:
+        transform = A.Compose ([
+        A.OneOf([A.Perspective(scale=(0.05,0.1), keep_size = True, pad_mode = 0, fit_output = True, p=0.5), A.ElasticTransform(p=0.5, alpha=16, sigma=512*0.05, alpha_affine=512*0.03),
+        #A.GaussNoise(var_limit = 0.05, p = 0.5)
+        ], p =0.5),
+        A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(5, p=0.5)], p=0.5)
+        ])
+    else:
+        transform = None
 
-    print("Beginning Training")    
+    print("Beginning Training for a " + modelType + " " + organ + " model")    
     iteration = 0
     #Criterion = F.binary_cross_entropy_with_logits()#nn.BCEWithLogitsLoss() I now just define this in the model
     
@@ -141,7 +146,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
 
         #creates the training dataset 
         #set transform = transform for data augmentation, None for no augmentation
-        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
+        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = transform)
 
         #creates the training dataloader 
         train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)

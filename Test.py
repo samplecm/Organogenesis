@@ -67,8 +67,6 @@ def TestPlot(organ, path, threshold, modelType):
         y = y.cpu()
         x = x.numpy()
         y = y.numpy()
-        print(np.amax(y))
-        print(np.amin(y))
         prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
 
         maskOnImage = MaskOnImage(x[0,0,:,:], prediction) #this puts the mask ontop of the CT image
@@ -218,12 +216,17 @@ def BestThreshold(organ, path, modelType, testSize=500):
         modelType (str): the type of model
         testSize (str, int): the number of images to test with for each threshold
 
+    Returns: 
+        bestThreshold (float): the best threshold for predicting contours based on 
+            F score
+
     """
+
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used: " + device.type)
-    print("Determining most accurate threshold...")
+    print("\nDevice being used: " + device.type)
+    print("\nDetermining most accurate threshold for the " + modelType + " " + organ + " model...")
     if modelType.lower() == "unet":
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
@@ -249,10 +252,10 @@ def BestThreshold(organ, path, modelType, testSize=500):
     falseNeg = []
     fScores = []
 
-    thresholds = np.linspace(0.05,0.9,11)
+    thresholds = np.linspace(0.05, 0.9, 11)
     
     for thres in thresholds:
-        print("Checking Threshold: %0.3f"%(thres))
+        print("\nChecking Threshold: %0.3f"%(thres))
         d = 0
         #get the accuracy and F score for the current threshold value
         thresAccuracy = []
@@ -447,7 +450,7 @@ def PlotPatientContours(contours, existingContours):
     o3d.visualization.draw_geometries([pointCloud])
 
 def FScore(organ, path, threshold, modelType):
-    """Computes the F score, accuarcy, precision, and recall for a model
+    """Computes the F score, accuracy, precision, and recall for a model
        on a given organ. Uses the validation data. 
 
     Args:
@@ -467,7 +470,7 @@ def FScore(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()   
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for computing F Score: " + device.type)
+    print("\nDevice being used for computing F Score: " + device.type)
     if modelType.lower() == "unet":
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
@@ -479,7 +482,7 @@ def FScore(organ, path, threshold, modelType):
     dataFolder = os.path.join(path, dataPath)
     dataFiles = sorted(os.listdir(dataFolder))
     d = 0
-    print('Calculating Fscore Statistics')
+    print("\nCalculating Fscore Statistics for the " + modelType + " " + organ + " model")
     TP = 0
     FP = 0
     FN = 0
@@ -567,7 +570,7 @@ def HaussdorffDistance(organ, path, threshold, modelType):
         if str(file).split("_")[1] not in patientList:
             patientList.append(str(file).split("_")[1])
 
-    print("Calculating Haussdorff Distance")
+    print("Calculating Haussdorff Distance for the " + modelType + " " + organ + " model...")
 
     for patientName in patientList: 
         predictedContourList, existingContourList, predictedContour, existingContour = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot = False)
