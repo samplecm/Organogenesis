@@ -196,7 +196,10 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
         hyperparameters.append(["Optimizer", "Adam"])
         hyperparameters.append(["Batch Size", "1"])
         hyperparameters.append(["Loss Function", "BCEWithLogitsLoss"])
-        hyperparameters.append(["Data Augmentation", "Off"])
+        if dataAugmentation == True: 
+            hyperparameters.append(["Data Augmentation", "On"])
+        else: 
+            hyperparameters.append(["Data Augmentation", "Off"])
 
         #save the hyperparameters to a binary file to be used in Test.FScore()
         with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
