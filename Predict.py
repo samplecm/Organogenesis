@@ -214,7 +214,7 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeLi
 
     for i, organ in enumerate(organList): 
         print("\nPredicting contours for the " + organ + " with the threshold " + str(thresholdList[i]))
-        combinedContours = GetContours(organ,patientName,path, modelType = modelTypeList[i], threshold = thresholdList[i], withReal=True, tryLoad=False, plot = False) 
+        combinedContours = GetContours(organ,patientName,path, modelType = modelTypeList[i], threshold = thresholdList[i], withReal=withReal, tryLoad=tryLoad, plot = False) 
         contours = contours + combinedContours[2]
         existingContours = existingContours + combinedContours[3]
 
