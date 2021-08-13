@@ -141,7 +141,6 @@ if __name__ == "__main__":
     parser.add_argument("--sortData", help="True/False. True if the patient list is to be visually inspected for quality assurance of contours to process for training.", default=False, action='store_true')
     parser.add_argument("--dataAugmentation", help="True/False. True to turn on data augmentation for training, False to use non-augmented CT images.", default=False, action='store_true')
 
-
     args = parser.parse_args()
     v = vars(args)
     n_args = sum([ 1 for a in v.values( ) if a])
