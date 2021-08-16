@@ -33,14 +33,20 @@ def SaveToDICOM(patientName, organList, path, contoursList):
     patientPath = os.path.join(path, patientPath)
     patientFolder = sorted(os.listdir(patientPath))
 
+    structFile = None
+
     for fileName in patientFolder:
         if "STRUCT" in fileName:
             structFile = fileName  
 
-    structPath = os.path.join(patientPath, structFile)
-
-    #load existing RT Struct
-    rtStruct = RTStructBuilder.create_from(dicom_series_path = patientPath, rt_struct_path = structPath)
+    if structFile is None:
+        rtStruct = RTStructBuilder.create_new(dicom_series_path = patientPath)
+        newStructFile = patientName + "STRUCT"
+    else:
+        structPath = os.path.join(patientPath, structFile)
+        #load existing RT Struct
+        rtStruct = RTStructBuilder.create_from(dicom_series_path = patientPath, rt_struct_path = structPath)
+        newStructFile = structFile.split(".dcm")[0] + "_1"
 
     #create a list of colors for the contours 
     colorList= [
@@ -87,5 +93,4 @@ def SaveToDICOM(patientName, organList, path, contoursList):
         rtStruct.add_roi(contours = contours, color = organColor, name = ROIName)
 
     #save the ROI to a new struct file
-    newStructFile = structFile.split(".dcm")[0] + "_1"
     rtStruct.save(str(os.path.join(patientPath, newStructFile)))

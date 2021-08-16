@@ -1,3 +1,5 @@
+#File imported from RT-Utils with small changes. Documentation can be found at https://github.com/qurit/rt-utils
+
 from typing import List, Union
 from random import randrange
 from pydicom.uid import PYDICOM_IMPLEMENTATION_UID 

@@ -1,3 +1,5 @@
+#File imported from RT-Utils with small changes. Documentation can be found at https://github.com/qurit/rt-utils
+
 import datetime
 import os 
 from rtutils import ROIData, SOPClassUID

@@ -141,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--loadContours", help="True/False. True to attempt to load previously predicted or processed contours to save time, False to predict or process data without trying to load files", default=False, action='store_true')
     parser.add_argument("--sortData", help="True/False. True if the patient list is to be visually inspected for quality assurance of the contours, False if confident that all contours are well contoured", default=False, action='store_true')
     parser.add_argument("--dataAugmentation", help="True/False. True to turn on data augmentation for training, False to use non-augmented CT images", default=False, action='store_true')
-
+    parser.add_argument("--dontSaveContours", help="True/False. Specify whether or not you would like the predicted contours saved to a DICOM file. True to not save predicted contours, False to save them", default=False, action='store_true')
 
     args = parser.parse_args()
     v = vars(args)
@@ -415,8 +415,14 @@ if __name__ == "__main__":
             thresList[i] = float(threshold)
         tryLoad = args.loadContours
         withReal = args.contoursWithReal   
-        
-        combinedContours = Predict.GetMultipleContours(organsList,patient,path, modelTypeList = modelTypeList, thresholdList = thresList, withReal=withReal, tryLoad=tryLoad) 
+        dontSave = args.dontSaveContours
+
+        if dontSave == False:
+            save = True
+        else: 
+            save = False
+
+        combinedContours = Predict.GetMultipleContours(organsList,patient,path, modelTypeList = modelTypeList, thresholdList = thresList, withReal=withReal, tryLoad=tryLoad, save=save) 
 
     elif args.function == "BestThreshold":
         if len(organsList) > 1:

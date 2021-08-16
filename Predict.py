@@ -179,7 +179,7 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
         Test.PlotPatientContours(contours, existingContours)
     return contoursList, existingContoursList, contours, existingContours     
 
-def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeList, withReal = True, tryLoad=True, plot=True): 
+def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeList, withReal = True, tryLoad=True, plot=True,save=True): 
     """Calls the GetContours function to predict contours for each organ 
        in organList using a pretrained model and then plots all of the 
        predicted contours.
@@ -219,6 +219,7 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeLi
     for i, organ in enumerate(organList): 
         print("\nPredicting contours for the " + organ + " with the threshold " + str(thresholdList[i]))
         combinedContours = GetContours(organ,patientName,path, modelType = modelTypeList[i], threshold = thresholdList[i], withReal=withReal, tryLoad=tryLoad, plot = False) 
+        contoursList.append(combinedContours[2])
         contours = contours + combinedContours[2]
         existingContours = existingContours + combinedContours[3]
 
