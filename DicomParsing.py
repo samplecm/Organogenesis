@@ -71,7 +71,8 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
                 #get the RTSTRUCT dicom file and get patient 's CT scans: 
                 for fileName in patient:
                     if "STRUCT" in fileName:
-                        structFile = fileName   
+                        structFile = fileName  
+                print(structFile)
                 structsMeta = dcmread(structFile).data_element("ROIContourSequence")
                 structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
                 patientStructuresDict[str(patientFolders[p])] =  [structure, structureROINum]
@@ -95,8 +96,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
             #get the RTSTRUCT dicom file and get patient 's CT scans: 
             for fileName in patient:
                 if "STRUCT" in fileName:
-                    structFile = fileName  
-            print(structFile)         
+                    structFile = fileName         
             structsMeta = dcmread(structFile).data_element("ROIContourSequence")
             structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
             #add to dictionary if structureindex is not 1111 (error code)
@@ -214,7 +214,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
                         else:
                             pointListy = np.array([x,y,z])   
                         numContourPoints+=1       
-                    contours[-1] = tempContour    
+                    contours[-1] = tempContour  
         #Right now I need the contour points in terms of the image pixel numbers so that they can be turned into an image for training:
         contourIndices = DICOM_to_Image_Coordinates(ipp, pixelSpacing, contours)
         #Now need to make images of the same size as CTs, with contour masks

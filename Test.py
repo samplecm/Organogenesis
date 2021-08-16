@@ -126,7 +126,7 @@ def GetMasks(organ, patientName, path, threshold, modelType):
     model = model.to(device)    
     model.eval()
 
-    dataPath = 'Processed_Data/' + organ #+ "_Val/" #Currently looking for patients in the test folder. 
+    dataPath = 'Processed_Data/' + organ + "_Test/" #Currently looking for patients in the test folder. 
     dataFolder = os.path.join(path, dataPath)
     dataFiles = os.listdir(dataFolder)
     filesRange = list(range(len(dataFiles)))
