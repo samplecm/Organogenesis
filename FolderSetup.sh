@@ -46,6 +46,18 @@ fi
 if [ ! -d "Body" ]; then
   mkdir "Body"
 fi
+if [ ! -d "Brain Stem" ]; then
+  mkdir "Brain Stem"
+fi
+if [ ! -d "Brain Stem_Val" ]; then
+  mkdir "Brain Stem_Val"
+fi
+if [ ! -d "Brain Stem_Test" ]; then
+  mkdir "Brain Stem_Test"
+fi
+if [ ! -d "Brain Stem bools" ]; then
+  mkdir "Brain Stem bools"
+fi
 if [ ! -d "Brain" ]; then
   mkdir "Brain"
 fi
