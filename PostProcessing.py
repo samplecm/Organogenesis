@@ -422,6 +422,13 @@ def MaxGap(slices):
 
 
 def Export_To_ONNX(organ):
+    """Takes a PyTorch model and converts it to an Open Neural Network Exchange (ONNX) model for operability with other programming languages. The new model is saved into the Models folder.
+
+    Args:
+        organ (str): the name of the organ for which a PyTorch model is to be converted to an ONNX model.
+        modelType (str): specifies whether a UNet or MultiResUnet model is to be converted
+
+    """
     model = Model.UNet()
     #if the model is not UNet switch to MultiResUNet
     try: 
