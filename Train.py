@@ -21,7 +21,7 @@ from Dataset import CTDataset
 import albumentations as A 
 import subprocess
 
-def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType):
+def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=False, preSorted=False, dataAugmentation=False):
     """Trains a model for predicting contours on a given organ. Saves the model 
        and loss history after each epoch. Stops training after a given number of
        epochs or when the validation loss has decreased by less than 0.001 for 
@@ -37,10 +37,13 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
             validation folders, False if they are already processed
         loadModel (bool): True to load a model and continue training, 
             False to train a new model
+        modelType (str): the type of model to be used in training 
+        sortData (bool): True to visually inspect contours for quality 
+            assurance, False to process data without looking at contours
         preSorted(bool): True to use presorted good/bad/no contour lists, 
             False to display contours for each patient and sort manually
-        modelType (str): the type of model to be used in training 
-
+        dataAugmentation (bool): True to turn on data augmentation for 
+            training, False to use non-augmented CT images.
     """
     #First extract patient training data and process it for each, saving it into Processed_Data folder
     torch.cuda.empty_cache()
@@ -51,7 +54,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
         filesFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), patientsPath)
         dataFolder = os.path.join(pathlib.Path(__file__).parent.absolute(), dataPath) #this gives the absolute folder reference of the datapath variable defined above
         if processData:
-            DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
+            DicomParsing.GetTrainingData(filesFolder, organ,path, sortData, preSorted) #go through all the dicom files and create the images
             print("Data Processed")
         
     else: 
@@ -68,14 +71,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
                 loadModel = False 
                 modelErrorMessage = "Model directory was not found in the provided path. Model will not be loaded for training. A new model will be created in the directory.\n \
                     press enter to continue"
-                while True: #wait for user input    
-                    try:
-                        input = input(modelErrorMessage)
-                        if input == "":
-                            break
-                    except KeyboardInterrupt:
-                        quit()    
-                    except: pass   
+                
             
         #Furthermore, if processData is false, then there must exist the Processed_Data folder
         if not processData:
@@ -103,12 +99,12 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
             shutil.copy(folderScriptPath, path)
             os.chdir(path)
             subprocess.call(['sh', './FolderSetup.sh'])                 
-            DicomParsing.GetTrainingData(filesFolder, organ, preSorted, path) #go through all the dicom files and create the images
+            DicomParsing.GetTrainingData(filesFolder, organ, path, preSorted, path) #go through all the dicom files and create the images
             print("Data Processed")
 
     #See if cuda is available, and set the device as either cuda or cpu if is isn't available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print("Device being used for training: " + device.type)
+    print("\nDevice being used for training: " + device.type)
     #Now define or load the model and optimizer: 
     epochLossHistory = []
     trainLossHistory = []
@@ -130,14 +126,18 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
     
     dataFiles = sorted(os.listdir(dataFolder))
 
-    transform = A.Compose ([
-    A.OneOf([A.Perspective(scale=(0.05,0.1), keep_size = True, pad_mode = 0, fit_output = True, p=0.5), A.ElasticTransform(p=0.5, alpha=16, sigma=512*0.05, alpha_affine=512*0.03),
-    #A.GaussNoise(var_limit = 0.05, p = 0.5)
-    ], p =0.5),
-    A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(5, p=0.5)], p=0.5)
-    ])
+    #set transform = transform for data augmentation, None for no augmentation
+    if dataAugmentation == True:
+        transform = A.Compose ([
+        A.OneOf([A.Perspective(scale=(0.05,0.1), keep_size = True, pad_mode = 0, fit_output = True, p=0.5), A.ElasticTransform(p=0.5, alpha=16, sigma=512*0.05, alpha_affine=512*0.03),
+        #A.GaussNoise(var_limit = 0.05, p = 0.5)
+        ], p =0.5),
+        A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(5, p=0.5)], p=0.5)
+        ])
+    else:
+        transform = None
 
-    print("Beginning Training")    
+    print("Beginning Training for a " + modelType + " " + organ + " model")    
     iteration = 0
     #Criterion = F.binary_cross_entropy_with_logits()#nn.BCEWithLogitsLoss() I now just define this in the model
     
@@ -146,7 +146,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
 
         #creates the training dataset 
         #set transform = transform for data augmentation, None for no augmentation
-        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = None)
+        train_dataset = CTDataset(dataFiles = dataFiles, root_dir = dataFolder, transform = transform)
 
         #creates the training dataloader 
         train_loader = DataLoader(dataset = train_dataset, batch_size = 1, shuffle = True)
@@ -196,7 +196,10 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, preSorted, modelType
         hyperparameters.append(["Optimizer", "Adam"])
         hyperparameters.append(["Batch Size", "1"])
         hyperparameters.append(["Loss Function", "BCEWithLogitsLoss"])
-        hyperparameters.append(["Data Augmentation", "Off"])
+        if dataAugmentation == True:
+            hyperparameters.append(["Data Augmentation", "On"])
+        else:
+            hyperparameters.append(["Data Augmentation", "Off"])
 
         #save the hyperparameters to a binary file to be used in Test.FScore()
         with open(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "wb") as fp:

@@ -1,14 +1,6 @@
 #!/bin/bash
 #Create all the necessary folders for the program to work correctly
-pip install numpy
-pip install Shapely
-pip install pydicom
-pip install open3d
-pip install opencv-python
-pip install pickle
-pip install matplotlib
-pip install pytorch
-pip install SSIM-PIL
+
 if [ ! -d "Loss History" ]; then
   mkdir "Loss History"
 fi
@@ -47,6 +39,9 @@ fi
 cd "Processed_Data"
 if [ ! -d "Sorted Contour Lists"]; then
   mkdir "Sorted Contour Lists"]
+fi
+if [ ! -d "Area Stats"]; then
+  mkdir "Area Stats"]
 fi
 if [ ! -d "Body" ]; then
   mkdir "Body"

@@ -16,7 +16,7 @@ class CTDataset(Dataset):
         Args:
             dataFiles (list): a list containing the names of the files with CT 
                 data (images and masks)
-            root_dir (str): the path to the driectory containing the dataFiles
+            root_dir (str): the path to the directory containing the dataFiles
             transform (Compose, None): the transform(s) to be used for data 
                 augmentation
 
@@ -34,7 +34,7 @@ class CTDataset(Dataset):
 
     def __getitem__(self, index):
         """Gets the image and mask in the dataset at a given index.
-           Performs data if it augmentation if being used.
+           Performs data augmentation if it is  being used.
 
         Args:
             index (int): the index of the image and mask to return
