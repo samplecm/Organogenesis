@@ -24,6 +24,14 @@ organOps ={
     "Right Submandibular": re.compile(r"ri?g?h?t?(-|_| )subma?n?d?i?b?u?l?a?r?"),
     "Brainstem": re.compile(r"b?r?a?i?n?stem"),
     "Larynx": re.compile(r"lary?n?(x|g?o?p?h?a?r?y?n?x?)?"),
+    "Brain": re.compile(r"brain"),
+    "Brachial Plexus": re.compile(r"brachi?a?l?(-|_| )?Plexu?s?)"),
+    "Chiasm": re.compile(r"chia?s?m?"),
+    "Esophagus": re.compile(r"esopha?g?u?s?"),
+    "Globes": re.compile(r"globe?s?"),
+    "Lens": re.compile(r"lens"),
+    "lips": re.compile(r"lips?"),
+    "optic nerves": re.compile(r"opti?c?(-|_| )?nerv?e?"),
     "All": re.compile(r"all")
 }
 #Create a list of possible functions
@@ -121,7 +129,7 @@ if __name__ == "__main__":
         description="Organogenesis: an open source program for autosegmentation of medical images"
     )
     parser.add_argument('-o', "--organs", help="Specify organ(s) to train/evaluate a model for or predict/generate contours with. Include a single space between organs. \
-        Please choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \n left-submandibular, \n right-submandibular, \n brainstem, \n larynx/laryngopharynx", nargs = '+', default=None, type = str)
+        Please choose from: \n\n body, \n brain, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \nright-parotid, \n left-parotid, \nspinal-cord,\n right-submandibular, \n left-submandibular, \n all\n", nargs = '+', default=None, type = str)
     parser.add_argument('-f', "--function", help = "Specify the function to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
         \"GetContours\": to obtain predicted contours for a patient, \"BestThreshold\": to find the best threhold for maximizing a model's F score, \"GetEvalData\": to calculate the F score, recall, precision, accuracy and 95th percentile Haussdorff distance for the given organ's model, \
         \"PlotMasks\": to plot 2d CTs with both manually drawn and predicted masks for visual comparison", default=None, type=str)
@@ -140,7 +148,6 @@ if __name__ == "__main__":
     parser.add_argument("--loadContours", help="True/False. True to attempt to load previously predicted or processed contours to save time, False to predict or process data without trying to load files", default=False, action='store_true')
     parser.add_argument("--sortData", help="True/False. True if the patient list is to be visually inspected for quality assurance of the contours, False if confident that all contours are well contoured", default=False, action='store_true')
     parser.add_argument("--dataAugmentation", help="True/False. True to turn on data augmentation for training, False to use non-augmented CT images", default=False, action='store_true')
-
 
     args = parser.parse_args()
     v = vars(args)
@@ -175,8 +182,7 @@ if __name__ == "__main__":
         while True: #get user input
             organMatch = False 
             try:
-                organsSelected = input("\nInvalid or no organ(s) specified. Please specify the organ(s) that you wish to train/evaluate a model for or predict/generate contours with separated by a single space.\n\nPlease choose from: \n\n body,\n spinal-cord, \n oral-cavity, \n left-parotid, \n right-parotid, \
-                    \n left-submandibular, \n right-submandibular, \n brainstem, \n larynx/laryngopharynx, \n all\n>")
+                organsSelected = input("\nInvalid or no organ(s) specified. Please specify the organ(s) that you wish to train/evaluate a model for or predict/generate contours with separated by a single space.\n\nPlease choose from: \n\\n body, \n brain, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \nright-parotid, \n left-parotid, \nspinal-cord,\n right-submandibular, \n left-submandibular, \n all\n>")
                 organs = list(organsSelected.split(" "))
                 organsList = []
                 for i, organ in enumerate(organs): 
