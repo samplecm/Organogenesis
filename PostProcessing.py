@@ -139,8 +139,8 @@ def MaskToContour(image):
     
     #forOpenCV's canny edge detection, define a maximum and minimum threshold value
     image = image.astype(np.uint8)
-    edges = []
-    contours, hierarchy = cv.findContours(image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    edges = cv.Canny(image, 0,0.9)
+    contours, hierarchy = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
     #sometimes can return more than one contour list, so append these.
     if len(contours) == 0:
         return edges, contours

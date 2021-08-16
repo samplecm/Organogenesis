@@ -356,8 +356,6 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
                         with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump(contourOnPlane[zSlice], fp)     
             else:
-                if zSlice < 10:
-                    sliceText = "0" + str(zSlice)
                 with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
                 with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:

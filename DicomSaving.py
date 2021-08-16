@@ -39,6 +39,7 @@ def SaveToDICOM(patientName, organList, path, contoursList):
         if "STRUCT" in fileName:
             structFile = fileName  
 
+    #create a new struct file if there wasn't one provided
     if structFile is None:
         rtStruct = RTStructBuilder.create_new(dicom_series_path = patientPath)
         newStructFile = patientName + "STRUCT"
