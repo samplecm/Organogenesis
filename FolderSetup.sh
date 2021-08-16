@@ -46,6 +46,125 @@ fi
 if [ ! -d "Body" ]; then
   mkdir "Body"
 fi
+if [ ! -d "Brain" ]; then
+  mkdir "Brain"
+fi
+if [ ! -d "Brain_Test" ]; then
+  mkdir "Brain_Test"
+fi
+if [ ! -d "Brain_Val" ]; then
+  mkdir "Brain_Val"
+fi
+if [ ! -d "Brain bools" ]; then
+  mkdir "Brain bools"
+fi
+if [ ! -d "Brachial Plexus_Test" ]; then
+  mkdir "Brachial Plexus_Test"
+fi
+if [ ! -d "Brachial Plexus_Val" ]; then
+  mkdir "Brachial Plexus_Val"
+fi
+if [ ! -d "Brachial Plexus bools" ]; then
+  mkdir "Brachial Plexus bools"
+fi
+if [ ! -d "Brachial Plexus" ]; then
+  mkdir "Brachial Plexus"
+fi
+if [ ! -d "Chiasm" ]; then
+  mkdir "Chiasm"
+fi
+if [ ! -d "Chiasm_Test" ]; then
+  mkdir "Chiasm_Test"
+fi
+if [ ! -d "Chiasm_Val" ]; then
+  mkdir "Chiasm_Val"
+fiif [ ! -d "Chiasm bools" ]; then
+  mkdir "Chiasm bools"
+fi
+if [ ! -d "Esophagus" ]; then
+  mkdir "Esophagus"
+fi
+if [ ! -d "Esophagus bools" ]; then
+  mkdir "Esophagus bools"
+fi
+if [ ! -d "Esophagus_Test" ]; then
+  mkdir "Esophagus_Test"
+fi
+if [ ! -d "Esophagus_Val" ]; then
+  mkdir "Esophagus_Val"
+fi
+if [ ! -d "Globes" ]; then
+  mkdir "Globes"
+fi
+if [ ! -d "Globes_Test" ]; then
+  mkdir "Globes_Test"
+fi
+if [ ! -d "Globes_Val" ]; then
+  mkdir "Globes_Val"
+fi
+if [ ! -d "Globes bools" ]; then
+  mkdir "Globes bools"
+fi
+if [ ! -d "Larynx" ]; then
+  mkdir "Larynx"
+fi
+if [ ! -d "Larynx bools" ]; then
+  mkdir "Larynx bools"
+fi
+if [ ! -d "Larynx_Test" ]; then
+  mkdir "Larynx_Test"
+fi
+if [ ! -d "Larynx_Val" ]; then
+  mkdir "Larynx_Val"
+fi
+if [ ! -d "Lens" ]; then
+  mkdir "Lens"
+fi
+if [ ! -d "Lens_Val" ]; then
+  mkdir "Lens_Val"
+fi
+if [ ! -d "Lens bools" ]; then
+  mkdir "Lens bools"
+fi
+if [ ! -d "Lens_Test" ]; then
+  mkdir "Lens_Test"
+fi
+if [ ! -d "Lips" ]; then
+  mkdir "Lips"
+fi
+if [ ! -d "Lips_Val" ]; then
+  mkdir "Lips_Val"
+fi
+if [ ! -d "Lips_Test" ]; then
+  mkdir "Lips_Test"
+fi
+if [ ! -d "Lips bools" ]; then
+  mkdir "Lips bools"
+fi
+if [ ! -d "Mandible" ]; then
+  mkdir "Mandible"
+fi
+if [ ! -d "Mandible_Test" ]; then
+  mkdir "Mandible_Test"
+fi
+if [ ! -d "Mandible_Val" ]; then
+  mkdir "Mandible_Val"
+fi
+if [ ! -d "Mandible bools" ]; then
+  mkdir "Mandible bools"
+fi
+if [ ! -d "Optic Nerves" ]; then
+  mkdir "Optic Nerves"
+fi
+if [ ! -d "Optic Nerves_Val" ]; then
+  mkdir "Optic Nerves_Val"
+fi
+if [ ! -d "Optic Nerves_Test" ]; then
+  mkdir "Optic Nerves_Test"
+fi
+if [ ! -d "Optic Nerves bools" ]; then
+  mkdir "Optic Nerves bools"
+fi
 if [ ! -d "Spinal Cord" ]; then
   mkdir "Spinal Cord"
 fi
@@ -106,10 +225,6 @@ fi
 if [ ! -d "Right Parotid_Test" ]; then
   mkdir "Right Parotid_Test"
 fi
-if [ ! -d "CT Images" ]; then
-  mkdir "CT Images"
-fi
-
 
 cd ../
 if [ ! -d "SavedImages" ]; then
