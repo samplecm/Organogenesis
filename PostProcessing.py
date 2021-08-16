@@ -206,9 +206,9 @@ def FixContours(orig_contours):
             at a specific z value 
 
     """
-    #orig_contours is currently in a ridiculous nested data structure. so fix it first. 
-    maxLength = 0
 
+    #raise ContourPredictionError if no contour points are predicted
+    maxLength = 0
     for slice in orig_contours: 
         if len(slice) > maxLength:
             maxLength = len(slice)
@@ -216,6 +216,7 @@ def FixContours(orig_contours):
     if maxLength == 0:
         raise ContourPredictionError
 
+    #orig_contours is currently in a ridiculous nested data structure. so fix it first. 
     contours = []
     for plane in orig_contours:
         planePoints = []
@@ -573,10 +574,10 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
             #remove the contour points for the interpolated slice
             if len(slice) > 0:
                 if round(slice[0][2],2) == zValue:
-                    contours.remove(slice)
+                    index = contours.index(slice)
+                    #add the interpolated contour points
+                    contours[index] = interpolatedPointsList
                     break  
-        #add the interpolated contour points
-        contours.append(interpolatedPointsList)
 
     return contours
 
@@ -628,7 +629,7 @@ def UnreasonableArea(contours, organ , path):
             #tends to interpolate weird near the boundariues so exclude them
             if percent < 4 or percent > 96:
                 continue
-            area = hull.area
+            area = abs(hull.area)
             #if the area is above the max area or below the min area, add the z value to the unreasonable area list
             for element in percentAreaStats:
                 if percent == element[0]:
