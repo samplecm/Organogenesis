@@ -764,9 +764,9 @@ def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickne
         newContours.append([])
         if len(contours[layer]) > 0:
             for point in contours[layer]:
-                x  = (point[0] * pixelSpacing[0]) + ipp[0]
-                y  = (point[1] * pixelSpacing[1]) + ipp[1]
-                z = zValues[layer]
+                x  = round((point[0] * pixelSpacing[0]) + ipp[0],2)
+                y  = round((point[1] * pixelSpacing[1]) + ipp[1],2)
+                z = round(zValues[layer],2)
                 newContours[-1].append([x,y,z])
     return newContours        
 

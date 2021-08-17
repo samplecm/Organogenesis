@@ -563,12 +563,12 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
             for pointAbove in pointsListAbove:
                 pointBelow = ClosestPoint(pointAbove, pointsListBelow) 
                 interpolatedPoint = InterpolatePoint(pointAbove, pointBelow, distanceBelow+distanceAbove, distanceAbove) 
-                interpolatedPointsList.append([interpolatedPoint[0], interpolatedPoint[1], zValue])
+                interpolatedPointsList.append([round(interpolatedPoint[0],2), round(interpolatedPoint[1],2), round(zValue,2)])
         else: 
             for pointBelow in pointsListBelow:
                 pointAbove = ClosestPoint(pointBelow, pointsListAbove) 
                 interpolatedPoint = InterpolatePoint(pointBelow, pointAbove, distanceBelow+distanceAbove, distanceBelow) 
-                interpolatedPointsList.append([interpolatedPoint[0], interpolatedPoint[1], zValue])
+                interpolatedPointsList.append([round(interpolatedPoint[0],2), round(interpolatedPoint[1],2), round(zValue,2)])
 
         for slice in contours:
             #remove the contour points for the interpolated slice
