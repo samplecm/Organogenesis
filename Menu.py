@@ -26,7 +26,7 @@ organOps ={
     "Brainstem": re.compile(r"b?r?a?i?n?stem"),
     "Larynx": re.compile(r"lary?n?(x|g?o?p?h?a?r?y?n?x?)?"),
     "Brain": re.compile(r"brain"),
-    "Brachial Plexus": re.compile(r"brachi?a?l?(-|_| )?Plexu?s?)"),
+    "Brachial Plexus": re.compile(r"brachi?a?l?(-|_| )?Plexu?s?"),
     "Chiasm": re.compile(r"chia?s?m?"),
     "Esophagus": re.compile(r"esopha?g?u?s?"),
     "Globes": re.compile(r"globe?s?"),
@@ -352,7 +352,7 @@ if __name__ == "__main__":
                             if len(modelTypeList) == len(organsList) or len(modelTypeList) == 1: #make sure the correct number of model types were given
                                 break
                     else:
-                        if modelType == "unet" or modelType.lower() == "multiresunet": #make sure that the model is either unet or multiresunet
+                        if modelType.lower() == "unet" or modelType.lower() == "multiresunet": #make sure that the model is either unet or multiresunet
                             modelTypeList = [modelType]
                             break
                 except KeyboardInterrupt:

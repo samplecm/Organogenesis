@@ -456,6 +456,13 @@ def Export_To_ONNX(organ):
     except (InvalidGraph, TypeError, RuntimeError) as e:
         raise e
 def Infer_From_ONNX(organ, patient):    
+    """Predicts organ masks using an ONNX model and plots slices for viewing. The onnx model must be in the Models directory with the name “Model_{organ}.” This function is limited to viewing and cannot be used for creating contour lists or DICOM files.
+
+    Args:
+      organ (str): organ for which binary masks are to be predicted using an onnx model.
+      patient (str): The name of the patient within the Patient_Files directory which is to have organ masks predicted. 
+
+"""
     session = onnxruntime.InferenceSession(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".onnx"))
     inputName = session.get_inputs()[0].name 
     outputName = session.get_outputs()[0].name

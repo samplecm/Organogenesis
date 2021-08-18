@@ -1,21 +1,48 @@
 #!/bin/bash
 #Create all the necessary folders for the program to work correctly
 
+if [ ! -d "Evaluation Data" ]; then
+  mkdir "Evaluation Data"
+fi
 if [ ! -d "Loss History" ]; then
   mkdir "Loss History"
 fi
-if [ ! -d "Models" ]; then
-  mkdir "Models"
-fi
-if [ ! -d "Patient_Files" ]; then
-  mkdir "Patient_Files"
-fi
-if [ ! -d "Predictions_Patients" ]; then
-  mkdir "Predictions_Patients"
-fi
-cd "Predictions_Patients"
+cd "Loss History"
 if [ ! -d "Body" ]; then
   mkdir "Body"
+fi
+if [ ! -d "Brainstem" ]; then
+  mkdir "Brainstem"
+fi
+if [ ! -d "Brain" ]; then
+  mkdir "Brain"
+fi
+if [ ! -d "Brachial Plexus" ]; then
+  mkdir "Brachial Plexus"
+fi
+if [ ! -d "Chiasm" ]; then
+  mkdir "Chiasm"
+fi
+if [ ! -d "Esophagus" ]; then
+  mkdir "Esophagus"
+fi
+if [ ! -d "Globes" ]; then
+  mkdir "Globes"
+fi
+if [ ! -d "Larynx" ]; then
+  mkdir "Larynx"
+fi
+if [ ! -d "Lens" ]; then
+  mkdir "Lens"
+fi
+if [ ! -d "Lips" ]; then
+  mkdir "Lips"
+fi
+if [ ! -d "Mandible" ]; then
+  mkdir "Mandible"
+fi
+if [ ! -d "Optic Nerves" ]; then
+  mkdir "Optic Nerves"
 fi
 if [ ! -d "Spinal Cord" ]; then
   mkdir "Spinal Cord"
@@ -29,34 +56,131 @@ fi
 if [ ! -d "Right Parotid" ]; then
   mkdir "Right Parotid"
 fi
+if [ ! -d "Right Submandibular" ]; then
+  mkdir "Right Submandibular"
+fi
+if [ ! -d "Left Submandibular" ]; then
+  mkdir "Left Submandibular"
+fi
 
+cd ../
 
+if [ ! -d "Models" ]; then
+  mkdir "Models"
+fi
+if [ ! -d "Patient_Files" ]; then
+  mkdir "Patient_Files"
+fi
+if [ ! -d "Predictions_Patients" ]; then
+  mkdir "Predictions_Patients"
+fi
 
+cd "Predictions_Patients"
+if [ ! -d "Body" ]; then
+  mkdir "Body"
+fi
+if [ ! -d "Brainstem" ]; then
+  mkdir "Brainstem"
+fi
+if [ ! -d "Brain" ]; then
+  mkdir "Brain"
+fi
+if [ ! -d "Brachial Plexus" ]; then
+  mkdir "Brachial Plexus"
+fi
+if [ ! -d "Chiasm" ]; then
+  mkdir "Chiasm"
+fi
+if [ ! -d "Esophagus" ]; then
+  mkdir "Esophagus"
+fi
+if [ ! -d "Globes" ]; then
+  mkdir "Globes"
+fi
+if [ ! -d "Larynx" ]; then
+  mkdir "Larynx"
+fi
+if [ ! -d "Lens" ]; then
+  mkdir "Lens"
+fi
+if [ ! -d "Lips" ]; then
+  mkdir "Lips"
+fi
+if [ ! -d "Mandible" ]; then
+  mkdir "Mandible"
+fi
+if [ ! -d "Optic Nerves" ]; then
+  mkdir "Optic Nerves"
+fi
+if [ ! -d "Spinal Cord" ]; then
+  mkdir "Spinal Cord"
+fi
+if [ ! -d "Oral Cavity" ]; then
+  mkdir "Oral Cavity"
+fi
+if [ ! -d "Left Parotid" ]; then
+  mkdir "Left Parotid"
+fi
+if [ ! -d "Right Parotid" ]; then
+  mkdir "Right Parotid"
+fi
+if [ ! -d "Right Submandibular" ]; then
+  mkdir "Right Submandibular"
+fi
+
+if [ ! -d "Left Submandibular" ]; then
+  mkdir "Left Submandibular"
+fi
 cd ..
+
 if [ ! -d "Processed_Data" ]; then
   mkdir "Processed_Data"
 fi
 cd "Processed_Data"
-if [ ! -d "Sorted Contour Lists"]; then
-  mkdir "Sorted Contour Lists"]
+if [ ! -d "Sorted Contour Lists" ]; then
+  mkdir "Sorted Contour Lists"
 fi
-if [ ! -d "Area Stats"]; then
-  mkdir "Area Stats"]
+if [ ! -d "Area Stats" ]; then
+  mkdir "Area Stats"
 fi
 if [ ! -d "Body" ]; then
   mkdir "Body"
 fi
-if [ ! -d "Brain Stem" ]; then
-  mkdir "Brain Stem"
+if [ ! -d "Brainstem" ]; then
+  mkdir "Brainstem"
 fi
-if [ ! -d "Brain Stem_Val" ]; then
-  mkdir "Brain Stem_Val"
+if [ ! -d "Brainstem_Val" ]; then
+  mkdir "Brainstem_Val"
 fi
-if [ ! -d "Brain Stem_Test" ]; then
+if [ ! -d "Brainstem_Test" ]; then
   mkdir "Brain Stem_Test"
 fi
-if [ ! -d "Brain Stem bools" ]; then
-  mkdir "Brain Stem bools"
+if [ ! -d "Brainstem bools" ]; then
+  mkdir "Brainstem bools"
+fi
+if [ ! -d "Left Submandibular" ]; then
+  mkdir "Left Submandibular"
+fi
+if [ ! -d "Left Submandibular_Val" ]; then
+  mkdir "Left Submandibular_Val"
+fi
+if [ ! -d "Left Submandibular_Test" ]; then
+  mkdir "Left Submandibular_Test"
+fi
+if [ ! -d "Left Submandibular bools" ]; then
+  mkdir "Left Submandibular bools"
+fi
+if [ ! -d "Right Submandibular" ]; then
+  mkdir "Right Submandibular"
+fi
+if [ ! -d "Right Submandibular_Val" ]; then
+  mkdir "Right Submandibular_Val"
+fi
+if [ ! -d "Right Submandibular_Test" ]; then
+  mkdir "Right Submandibular_Test"
+fi
+if [ ! -d "Right Submandibular bools" ]; then
+  mkdir "Right Submandibular bools"
 fi
 if [ ! -d "Brain" ]; then
   mkdir "Brain"
@@ -90,7 +214,8 @@ if [ ! -d "Chiasm_Test" ]; then
 fi
 if [ ! -d "Chiasm_Val" ]; then
   mkdir "Chiasm_Val"
-fiif [ ! -d "Chiasm bools" ]; then
+fi
+if [ ! -d "Chiasm bools" ]; then
   mkdir "Chiasm bools"
 fi
 if [ ! -d "Esophagus" ]; then
