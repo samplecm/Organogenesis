@@ -239,7 +239,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
                     #now add all contour points to contourPoints as Point objects
                     for pointList in contour:
                         contourPoints.append((int(pointList[0]), int(pointList[1])))
-                    if len(pointList) > 3:
+                    if len(contourPoints) > 3:
                         contourPolygon = Polygon(contourPoints)
                         ImageDraw.Draw(contourImage).polygon(contourPoints, outline= 1, fill = 1) #this now makes every pixel that the organ slice contains be 1 and all other pixels remain zero. This is a binary mask for training
                         #ImageDraw.Draw(combinedImage).polygon(contourPoints, outline= 1, fill = 1)
@@ -764,9 +764,9 @@ def PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickne
         newContours.append([])
         if len(contours[layer]) > 0:
             for point in contours[layer]:
-                x  = (point[0] * pixelSpacing[0]) + ipp[0]
-                y  = (point[1] * pixelSpacing[1]) + ipp[1]
-                z = zValues[layer]
+                x  = round((point[0] * pixelSpacing[0]) + ipp[0],2)
+                y  = round((point[1] * pixelSpacing[1]) + ipp[1],2)
+                z = round(zValues[layer],2)
                 newContours[-1].append([x,y,z])
     return newContours        
 

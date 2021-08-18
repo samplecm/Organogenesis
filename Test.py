@@ -529,7 +529,7 @@ def FScore(organ, path, threshold, modelType):
                             FP += 1
                     elif y[x_idx,y_idx] == 1:     
                         FN += 1           
-        print("Finished " + str(d) + " out of " + str(1000) + " contours...")                     
+        print("Finished " + str(d) + " out of " + str(len(dataFiles)) + " contours...")                     
     totalPoints = d * xLen * yLen                    
     recall = TP / (TP + FN)
     precision = TP / (TP + FP)

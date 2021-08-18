@@ -31,8 +31,9 @@ organOps ={
     "Esophagus": re.compile(r"esopha?g?u?s?"),
     "Globes": re.compile(r"globe?s?"),
     "Lens": re.compile(r"lens"),
-    "lips": re.compile(r"lips?"),
-    "optic nerves": re.compile(r"opti?c?(-|_| )?nerv?e?"),
+    "Lips": re.compile(r"lips?"),
+    "Mandible": re.compile(r"mand?ible?"),
+    "Optic Nerves": re.compile(r"opti?c?(-|_| )?nerv?e?"),
     "All": re.compile(r"all")
 }
 #Create a list of possible functions
@@ -50,7 +51,7 @@ def main():
     print("------------------")
 
     #Keep a list of available structures for training/predicting
-    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "Left Submandibular", "Right Submandibular","All"] 
+    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "Left Submandibular", "Right Submandibular", "Brainstem","All"] 
 
     #Need to get user input. Make a string to easily ask for a number corresponding to an OAR.
     ChooseOAR_string = "Please enter the number(s) for the organ(s) you wish to contour / train a model for. Separate the numbers with spaces \n>>"
@@ -110,7 +111,7 @@ def main():
         Predict.GetMultipleContours(chosenOARs,"HN1004",path = None, modelType = "unet", thresholdList = [0.8], withReal=True, tryLoad=False) 
         
     elif task == 3:
-        Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "multiresunet", onlyMasks=False, onlyBackground=False)
+        Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "multiresunet")
     elif task == 4:
         F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.2, path = None, modelType = "multiresunet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
@@ -130,25 +131,25 @@ if __name__ == "__main__":
         description="Organogenesis: an open source program for autosegmentation of medical images"
     )
     parser.add_argument('-o', "--organs", help="Specify organ(s) to train/evaluate a model for or predict/generate contours with. Include a single space between organs. \
-        Please choose from: \n\n body, \n brain, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \nright-parotid, \n left-parotid, \nspinal-cord,\n right-submandibular, \n left-submandibular, \n all\n", nargs = '+', default=None, type = str)
+        Please choose from:\n body, \n brain, \n brainstem, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \n right-parotid, \n left-parotid, \n spinal-cord,\n right-submandibular, \n left-submandibular, \n all\n", nargs = '+', default=None, type = str)
     parser.add_argument('-f', "--function", help = "Specify the function to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
         \"GetContours\": to obtain predicted contours for a patient, \"BestThreshold\": to find the best threhold for maximizing a model's F score, \"GetEvalData\": to calculate the F score, recall, precision, accuracy and 95th percentile Haussdorff distance for the given organ's model, \
         \"PlotMasks\": to plot 2d CTs with both manually drawn and predicted masks for visual comparison", default=None, type=str)
     #Training parameters:    
     parser.add_argument("--lr", help="Specify the learning rate desired for model training", default=None, type=float)
     parser.add_argument("--epochs", help="Specify the number of epochs to train the model for", default=None, type=int)
-    parser.add_argument("--processData", help="True/False. True if patient DICOM data has not already been processed into training/validation/test folders", default=False, action='store_true')
+    parser.add_argument("--processData", help="True/False. True if patient DICOM data needs to be processed into training/validation/test folders", default=False, action='store_true')
     parser.add_argument("--loadModel", help="True/False. True if a pre-existing model is to be loaded to continue training", default=False, action='store_true')
     parser.add_argument("--dataPath", help="If data is not prepared in Patient_Files folder, specify the path to the directory containing all patient directories",type=str, default=None)
-    parser.add_argument("--preSorted", help="True/False. Only needed when \'processData\' and \'sortData\' arguments are True. True if contours have been sorted into \"good\" and \"bad\" contours, False if not.", default=False, action='store_true')
+    parser.add_argument("--preSorted", help="True/False. True if contours have been sorted into \"good\" and \"bad\" contour lists and the data should be processed into test/validation/training folders using them, False if not", default=False, action='store_true')
     parser.add_argument("--modelType", help="Specify the model type. UNet or MultiResUNet. If predicting with multiple organs, please enter the model types in the same order as the organs separated by a single space", type=str, default=None, nargs = '+')
+    parser.add_argument("--dataAugmentation", help="True/False. True to turn on data augmentation for training, False to use non-augmented CT images", default=False, action='store_true')
+    parser.add_argument("--sortData", help="True/False. True if the patient list is to be visually inspected for quality assurance of the contours, False if confident that all contours are well contoured", default=False, action='store_true')
     #GetContours parameters:
-    parser.add_argument("--predictionPatientName", help= "Specify the name of the patient folder in the Patient_Files folder that you wish to predict contours for. Alternatively, supply the full path a patient's folder.",type=str, default=None)
+    parser.add_argument("--predictionPatientName", help= "Specify the name of the patient folder in the Patient_Files folder that you wish to predict contours for. Alternatively, supply the full path to a patient's folder",type=str, default=None)
     parser.add_argument("--thres", help="Specify the pixel mask threshold to use with the model (between 0 and 1). If predicting with multiple organs, please enter the thresholds in the same order as the organs separated by a single space", type=float, default=None, nargs = '+')
     parser.add_argument("--contoursWithReal", help="True/False. True to plot the predicted contours alongside manually contoured ones from the patient's dicom file, False to just plot the predicted contours", default=False , action='store_true')
     parser.add_argument("--loadContours", help="True/False. True to attempt to load previously predicted or processed contours to save time, False to predict or process data without trying to load files", default=False, action='store_true')
-    parser.add_argument("--sortData", help="True/False. True if the patient list is to be visually inspected for quality assurance of the contours, False if confident that all contours are well contoured", default=False, action='store_true')
-    parser.add_argument("--dataAugmentation", help="True/False. True to turn on data augmentation for training, False to use non-augmented CT images", default=False, action='store_true')
     parser.add_argument("--dontSaveContours", help="True/False. Specify whether or not you would like the predicted contours saved to a DICOM file. True to not save predicted contours, False to save them", default=False, action='store_true')
 
     args = parser.parse_args()
@@ -184,7 +185,7 @@ if __name__ == "__main__":
         while True: #get user input
             organMatch = False 
             try:
-                organsSelected = input("\nInvalid or no organ(s) specified. Please specify the organ(s) that you wish to train/evaluate a model for or predict/generate contours with separated by a single space.\n\nPlease choose from: \n\\n body, \n brain, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \nright-parotid, \n left-parotid, \nspinal-cord,\n right-submandibular, \n left-submandibular, \n all\n>")
+                organsSelected = input("\nInvalid or no organ(s) specified. Please specify the organ(s) that you wish to train/evaluate a model for or predict/generate contours with separated by a single space.\n\nPlease choose from: \n body, \n brain, \n brainstem, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \n right-parotid, \n left-parotid, \n spinal-cord,\n right-submandibular, \n left-submandibular, \n all\n>")
                 organs = list(organsSelected.split(" "))
                 organsList = []
                 for i, organ in enumerate(organs): 
