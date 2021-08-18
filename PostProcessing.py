@@ -538,14 +538,14 @@ def InterpolateSlices(contours, patientName, organ, path, sliceThickness):
         zValueBelow = zValue 
         i = 1
         while zValueBelow == zValue: 
-            if zValue - i*sliceThickness not in slicesToFix:
+            if round(zValue - i*sliceThickness,2) not in slicesToFix:
                 zValueBelow = zValue - i*sliceThickness
                 distanceBelow = i*sliceThickness
             i += 1
 
         i = 1
         while zValueAbove == zValue: 
-            if zValue + i*sliceThickness not in slicesToFix:
+            if round(zValue + i*sliceThickness,2) not in slicesToFix:
                 zValueAbove = zValue + i*sliceThickness
                 distanceAbove = i*sliceThickness 
             i += 1
@@ -634,10 +634,10 @@ def UnreasonableArea(contours, organ , path):
             for element in percentAreaStats:
                 if percent == element[0]:
                     if area > element[2] or area < element[3]:
-                        unreasonableArea.append(zValue)
+                        unreasonableArea.append(round(zValue,2))
                     break
         except:
-            unreasonableArea.append(zValue)
+            unreasonableArea.append(round(zValue,2))
 
     return unreasonableArea
 
@@ -697,7 +697,7 @@ def UnreasonableNumPoints(contours, organ, path):
         for element in percentNumPointsStats:
                 if percent == element[0]:
                     if numPoints < element[3]*factor:
-                        unreasonableNumPoints.append(zValue)
+                        unreasonableNumPoints.append(round(zValue,2))
                     break
 
     return unreasonableNumPoints
@@ -740,7 +740,7 @@ def MissingSlices(contours, sliceThickness):
     else: 
         for zValue in expectedZValueList:
             if zValue not in zValueList:
-                missingZValues.append(zValue)
+                missingZValues.append(round(zValue,2))
 
     return missingZValues
 
