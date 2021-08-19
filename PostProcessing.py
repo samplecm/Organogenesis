@@ -423,11 +423,15 @@ def MaxGap(slices):
 
 
 def Export_To_ONNX(organ):
-    """Takes a PyTorch model and converts it to an Open Neural Network Exchange (ONNX) model for operability with other programming languages. The new model is saved into the Models folder.
+    """Takes a PyTorch model and converts it to an Open Neural Network Exchange 
+       (ONNX) model for operability with other programming languages. The new 
+       model is saved into the Models folder.
 
     Args:
-        organ (str): the name of the organ for which a PyTorch model is to be converted to an ONNX model.
-        modelType (str): specifies whether a UNet or MultiResUnet model is to be converted
+        organ (str): the name of the organ for which a PyTorch model is to 
+            be converted to an ONNX model
+        modelType (str): specifies whether a UNet or MultiResUnet model is 
+            to be converted
 
     """
     model = Model.UNet()
@@ -456,11 +460,16 @@ def Export_To_ONNX(organ):
     except (InvalidGraph, TypeError, RuntimeError) as e:
         raise e
 def Infer_From_ONNX(organ, patient):    
-    """Predicts organ masks using an ONNX model and plots slices for viewing. The onnx model must be in the Models directory with the name “Model_{organ}.” This function is limited to viewing and cannot be used for creating contour lists or DICOM files.
+    """Predicts organ masks using an ONNX model and plots slices for viewing. 
+       The ONNX model must be in the Models directory with the name 
+       “Model_{organ}.” This function is limited to viewing and cannot be 
+       used for creating contour lists or DICOM files.
 
     Args:
-      organ (str): organ for which binary masks are to be predicted using an onnx model.
-      patient (str): The name of the patient within the Patient_Files directory which is to have organ masks predicted. 
+      organ (str): organ for which binary masks are to be predicted 
+        using an ONNX model
+      patient (str): the name of the patient folder within the Patient_Files 
+        directory which is to have organ masks predicted
 
 """
     session = onnxruntime.InferenceSession(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".onnx"))
