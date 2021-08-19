@@ -60,19 +60,10 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
     else: 
         folderScriptPath = os.path.join(pathlib.Path(__file__).parent.absolute(), "FolderSetup.sh")
         filesFolder = path
-        modelPath = os.path.join(path, "Models")
+        modelPath = os.path.join(pathlib.Path(__file__).parent.absolute(), "Models")
         dataFolder = os.path.join(path, dataPath)   
         #Now if a path has been specified, then the Model folder must be in this path as well. 
-            #check for the model path:
-        if not os.path.isdir(modelPath):
-            #create the model path if it was not there, and refuse to load a model. 
-            os.mkdir(modelPath)
-            if loadModel:
-                loadModel = False 
-                modelErrorMessage = "Model directory was not found in the provided path. Model will not be loaded for training. A new model will be created in the directory.\n \
-                    press enter to continue"
-                
-            
+            #check for the model path:           
         #Furthermore, if processData is false, then there must exist the Processed_Data folder
         if not processData:
             dataPath = os.path.join(path, "Processed_Data")
@@ -97,9 +88,9 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
                 print("Data Processed")
         else:
             shutil.copy(folderScriptPath, path)
-            os.chdir(path)
-            subprocess.call(['sh', './FolderSetup.sh'])                 
-            DicomParsing.GetTrainingData(filesFolder, organ, path, preSorted, path) #go through all the dicom files and create the images
+            os.chdir(path)            
+            DicomParsing.GetTrainingData(filesFolder, organ, path, sortData, preSorted) #go through all the dicom files and create the images
+            subprocess.call(['sh', './FolderSetup.sh'])     
             print("Data Processed")
 
     #See if cuda is available, and set the device as either cuda or cpu if is isn't available
