@@ -54,7 +54,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
     #Create a dictionary for patients and their corresponding matched organ, and a list for unmatched patients. All the ones with matching organs can be used for training
     patientStructuresDict = {}
     unmatchedPatientsList = []
-    if path != None:
+    if path != pathlib.Path(__file__).parent.absolute() and path is not None:
         preSorted = False #if path is given, assume it doesn't have the normal folder structure.
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
