@@ -70,7 +70,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
                 patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
                 #get the RTSTRUCT dicom file and get patient 's CT scans: 
                 for fileName in patient:
-                    if "STRUCT" in fileName:
+                    if "STRUCT" in fileName or "Tubarial" in fileName:
                         structFile = fileName  
                 print(structFile)
                 structsMeta = dcmread(structFile).data_element("ROIContourSequence")
@@ -95,7 +95,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
             patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
             #get the RTSTRUCT dicom file and get patient 's CT scans: 
             for fileName in patient:
-                if "STRUCT" in fileName:
+                if "STRUCT" in fileName or "Tubarial" in fileName:
                     structFile = fileName         
             structsMeta = dcmread(structFile).data_element("ROIContourSequence")
             structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
@@ -150,9 +150,9 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
         patient_CTs = []
         patient_Struct = []
         for fileName in patient:
-            if "CT" in fileName and "STRUCT" not in fileName:
+            if "STRUCT" not in fileName and "Tubarial" not in fileName:
                 patient_CTs.append(fileName)
-            elif "STRUCT" in fileName:
+            elif "STRUCT" in fileName or "Tubarial" in fileName:
                 patient_Struct.append(fileName)  
         #iop and ipp are needed to relate the coordinates of structures to the CT images
         iop = dcmread(patient_CTs[0]).get("ImageOrientationPatient")
@@ -385,7 +385,7 @@ def GetPredictionCTs(patientName, path):
     patient_CTs = []
 
     for fileName in patientFolder:
-        if "CT" in fileName and "STRUCT" not in fileName:
+        if "Tubarial" not in fileName and "STRUCT" not in fileName:
             patient_CTs.append(os.path.join(patientPath, fileName))  
     iop = dcmread(patient_CTs[0]).get("ImageOrientationPatient")
     ipp = dcmread(patient_CTs[0]).get("ImagePositionPatient")
@@ -439,7 +439,7 @@ def GetDICOMContours(patientName, organ, path):
 
     structFile = ""
     for fileName in patientFolder:
-        if "STRUCT" in fileName:
+        if "STRUCT" in fileName or "Tubarial" in fileName:
             structFile = os.path.join(patientPath, fileName)   
     structsMeta = dcmread(structFile).data_element("ROIContourSequence")
     _, roiNumber = FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)        
@@ -681,6 +681,8 @@ def ImageUpsizer(array, factor):
         newArray (2D numpy array): the supersized array
 
     """
+    if factor == 1: 
+        return array
 
     #Take an array and supersize it by the factor given
     xLen, yLen = array.shape

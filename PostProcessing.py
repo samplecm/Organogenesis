@@ -636,6 +636,8 @@ def UnreasonableArea(contours, organ , path):
         pointsList = GetPointsAtZValue(contours, zValue)
       
         points = np.array(pointsList)
+        # if len(points) == 0:
+        #     continue
 
         #try to create the hull. If there are too few points that are too close together, add to the unreasonable area list
         try: 
@@ -649,6 +651,7 @@ def UnreasonableArea(contours, organ , path):
             #if the area is above the max area or below the min area, add the z value to the unreasonable area list
             for element in percentAreaStats:
                 if percent == element[0]:
+                    #if area < element[3]:
                     if area > element[2] or area < element[3]:
                         unreasonableArea.append(round(zValue,2))
                     break

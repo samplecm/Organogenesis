@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 cd ../.. 
 chmod +x Menu.py
-./Menu.py -o cord \
+./Menu.py -o Left-Tubarial \
 -f Train \
---lr 0.001 \
+--lr 0.0001 \
 --epochs 10 \
 --modelType UNet \
---processData
+--processData \
+--dataPath /media/calebsample/'TOSHIBA EXT'/Tubarial_Patients

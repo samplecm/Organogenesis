@@ -415,9 +415,11 @@ def PlotPatientContours(contours, existingContours):
     for layer_idx in range(len(contours)):
         if len(contours[layer_idx]) > 0:
             for point_idx in range(len(contours[layer_idx])):
-                x = contours[layer_idx][point_idx][0]
-                y = contours[layer_idx][point_idx][1]
-                z = contours[layer_idx][point_idx][2]
+                try:
+                    x = contours[layer_idx][point_idx][0]
+                    y = contours[layer_idx][point_idx][1]
+                    z = contours[layer_idx][point_idx][2]
+                except: continue    
                 #print([x,y,z])
                 points.append([x,y,z])
                 if (numPoints > 0):
@@ -655,8 +657,10 @@ def PercentStats(organ, path):
         path = pathlib.Path(__file__).parent.absolute()  
 
     #get the patient list from the sorted contour lists
-    patientList = pickle.load(open(os.path.join(path, str("Processed_Data/Sorted Contour Lists/" + organ + " Good Contours.txt")), 'rb')) 
-
+    try:
+        patientList = pickle.load(open(os.path.join(path, str("Processed_Data/Sorted Contour Lists/" + organ + " Good Contours.txt")), 'rb')) 
+    except: 
+        patientList = os.listdir(os.path.join(path, "Patient_Files"))
     percentAreaList = []
     percentNumPointsList = []
 
@@ -677,7 +681,7 @@ def PercentStats(organ, path):
             #create the list of contour points at the specified z value 
             pointsList = []
             for i in range(contourArray.shape[0]):
-                if (zValue == contourArray[i,2]):
+                if (round(zValue,2) - round(contourArray[i,2],2) <= 0.1):
                     pointsList.append([contourArray[i,0], contourArray[i,1]])
             points = np.array(pointsList)
             numPoints = len(pointsList)

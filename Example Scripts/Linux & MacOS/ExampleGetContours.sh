@@ -1,7 +1,7 @@
 #!/usr/bin/env bash 
 cd ../..
 chmod +x Menu.py
-./Menu.py -o all \
+./Menu.py -o left-tubarial \
  -f GetContours \
- --modelType MultiResUNet \
- --predictionPatientName patientName \
+ --modelType UNet \
+ --predictionPatientName 1 \
