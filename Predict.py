@@ -134,8 +134,8 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
         contours = PostProcessing.FixContours(contours)  
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
-        contours = PostProcessing.InterpolateSlices(contours, patientName, organ, path, sliceThickness)
-
+        #contours = PostProcessing.InterpolateSlices(contours, patientName, organ, path, sliceThickness)
+        contours = PostProcessing.AddInterpolatedPoints(contours)
         for layer_idx in range(len(contours)):
             if len(contours[layer_idx]) > 0:
                 for point_idx in range(len(contours[layer_idx])):
@@ -220,7 +220,7 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeLi
         print("\nPredicting contours for the " + organ + " with the threshold " + str(thresholdList[i]))
         combinedContours = GetContours(organ,patientName,path, modelType = modelTypeList[i], threshold = thresholdList[i], withReal=withReal, tryLoad=tryLoad, plot = False) 
         contoursList.append(combinedContours[2])
-        contours.append(combinedContours[2])
+        contours = contours + combinedContours[2]
         existingContours = existingContours + combinedContours[3]
 
     if save == True:

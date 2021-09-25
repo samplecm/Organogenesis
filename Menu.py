@@ -110,12 +110,12 @@ def main():
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
 
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"2",path = None,  thresholdList = [0.1], modelTypeList = ["unet"], withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"4",path = None,  thresholdList = [0.1], modelTypeList = ["unet"], withReal=True, tryLoad=False) 
         
     elif task == 3:
         Test.BestThreshold(chosenOARs[0], path=None, testSize=300, modelType = "unet")
     elif task == 4:
-        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0., path = None, modelType = "multiresunet")    
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.1, path = None, modelType = "unet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:

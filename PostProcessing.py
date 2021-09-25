@@ -12,7 +12,7 @@ import pickle
 import Test
 import DicomParsing
 from scipy.spatial import ConvexHull
-
+import copy
 
 def Process(prediction, threshold):
     """Performs a sigmoid and filters the prediction to a given threshold.
@@ -29,6 +29,49 @@ def Process(prediction, threshold):
     
     return prediction
 
+def AddInterpolatedPoints(orig_contours):
+    """This makes sure that each slice of contours has at least 30 points
+    Args: 
+        contours (list): the contour list for a single patient
+    """
+    contours = copy.deepcopy(orig_contours)
+    #Now add in sufficient number of points 
+    for contour_idx in range(len(contours)): 
+        contour = contours[contour_idx]
+        numPointsOrig = len(contour)
+        numPoints = len(contour)
+        if numPoints > 40:
+            continue
+        if numPoints < 3:
+            contours[contour_idx] = []
+            continue
+
+
+        pointIncreaseFactor = 1
+        while numPoints < 40:  
+            numPoints = numPoints + numPointsOrig
+            pointIncreaseFactor = pointIncreaseFactor + 1      
+        increasedContour = []
+        for point_idx in range(len(contour)-1):    
+            increasedContour.append(contour[point_idx].copy())
+            for extraPointNum in range(pointIncreaseFactor):
+                scaleFactor = extraPointNum / (pointIncreaseFactor + 1)
+                newX = (contour[point_idx+1][0] - contour[point_idx][0]) * scaleFactor + contour[point_idx][0]
+                newY = (contour[point_idx+1][1] - contour[point_idx][1]) * scaleFactor + contour[point_idx][1]
+                z = contour[point_idx][2]
+                newPoint = [newX, newY, z]
+                increasedContour.append(newPoint)
+        #Now do it for the last point connected to the first
+        for extraPointNum in range(pointIncreaseFactor):
+            scaleFactor = extraPointNum / (pointIncreaseFactor + 1)
+            newX = (contour[0][0] - contour[-1][0]) * scaleFactor + contour[-1][0]
+            newY = (contour[0][1] - contour[-1][1]) * scaleFactor + contour[-1][1]
+            z = contour[-1][2]
+            newPoint = [newX, newY, z]
+            increasedContour.append(newPoint)        
+        contours[contour_idx] = increasedContour
+
+    return contours 
 
 def sigmoid(z):
     """Performs a sigmoid function on z. 
@@ -636,8 +679,8 @@ def UnreasonableArea(contours, organ , path):
         pointsList = GetPointsAtZValue(contours, zValue)
       
         points = np.array(pointsList)
-        # if len(points) == 0:
-        #     continue
+        if len(points) == 0:
+            continue
 
         #try to create the hull. If there are too few points that are too close together, add to the unreasonable area list
         try: 
