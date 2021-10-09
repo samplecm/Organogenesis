@@ -105,12 +105,12 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(chosenOARs[0], 10, 1e-4, path=None, processData=False, loadModel=False, modelType = "UNet", sortData=False, preSorted=False)
+        Train.Train(chosenOARs[0], 10, 1e-4, path=None, processData=True, loadModel=False, modelType = "UNet", sortData=False, preSorted=False)
         #Test.Best_Threshold(OARs[chosenOAR],400)
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
 
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"4",path = None,  thresholdList = [0.1], modelTypeList = ["unet"], withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"3",path = None,  thresholdList = [0.1], modelTypeList = ["unet"], withReal=True, tryLoad=False) 
         
     elif task == 3:
         Test.BestThreshold(chosenOARs[0], path=None, testSize=300, modelType = "unet")
