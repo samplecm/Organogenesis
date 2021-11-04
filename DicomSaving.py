@@ -75,10 +75,11 @@ def SaveToDICOM(patientName, organList, path, contoursList):
         contours = newContours
 
         #if there is already a contour under the name of the organ rename to "organ_1"
-        ROIName = organList[i]
-        for element in rtStruct.ds.StructureSetROISequence:
-            if str(element.ROIName).lower() == organList[i].lower():
-                ROIName = organList[i] + "_1"
+        ROIName = "ORG_" + organList[i]
+        ROIName = ROIName[0:16]
+        # for element in rtStruct.ds.StructureSetROISequence:
+            # if str(element.ROIName).lower() == organList[i].lower():
+            #     ROIName = organList[i] + "_1"
 
         #assign the contour a color
         if i < len(colorList):

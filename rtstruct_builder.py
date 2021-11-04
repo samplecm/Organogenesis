@@ -67,6 +67,9 @@ class RTStructBuilder:
         """
         Method to validate that the ReferencedSOPInstanceUID of a given contour image exists within the series data
         """
+
+        return 
+        
         for series in series_data:
             if contour_image.ReferencedSOPInstanceUID == series.file_meta.MediaStorageSOPInstanceUID:
                 return

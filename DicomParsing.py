@@ -68,13 +68,17 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
         for p in range(len(patientFolders)):
             if patientFolders[p] in goodContoursList:
                 patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
-                #get the RTSTRUCT dicom file and get patient 's CT scans: 
+               
+                structFiles = []
                 for fileName in patient:
-                    if "STRUCT" in fileName:
-                        structFile = fileName  
-                print(structFile)
-                structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-                structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
+                    #get the modality: 
+                    patientData = pydicom.dcmread(fileName)
+                    modality = patientData[0x0008,0x0060].value 
+                    if "STRUCT" in modality:
+                        structFiles.append(fileName)  
+                #structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+                structure, structureROINum, struct_idx = FindStructure(structFiles, organ)
+
                 patientStructuresDict[str(patientFolders[p])] =  [structure, structureROINum]
 
         validationPatientsList = []
@@ -94,14 +98,17 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
         for p in range(len(patientFolders)):
             patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
             #get the RTSTRUCT dicom file and get patient 's CT scans: 
+            structFiles = []
             for fileName in patient:
-                if "STRUCT" in fileName:
-                    structFile = fileName         
-            structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-            structure, structureROINum= FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)
+                #get the modality: 
+                patientData = pydicom.dcmread(fileName)
+                modality = patientData[0x0008,0x0060].value 
+                if "STRUCT" in modality:
+                    structFiles.append(fileName)          
+            structure, structureROINum, struct_idx = FindStructure(structFiles, organ)
             #add to dictionary if structureindex is not 1111 (error code)
             if structureROINum!= 1111: #error code from FindStructure
-                patientStructuresDict[str(patientFolders[p])] =  [structure, structureROINum]
+                patientStructuresDict[str(patientFolders[p])] =  [structure, structureROINum, struct_idx]
             else:
                 unmatchedPatientsList.append(str(patientFolders[p]))   
 
@@ -150,9 +157,13 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
         patient_CTs = []
         patient_Struct = []
         for fileName in patient:
-            if "CT" in fileName and "STRUCT" not in fileName:
+            #get the modality: 
+            patientData = pydicom.dcmread(fileName)
+            modality = patientData[0x0008, 0x0060].value 
+            
+            if modality == "CT":
                 patient_CTs.append(fileName)
-            elif "STRUCT" in fileName:
+            elif "STRUCT" in modality:
                 patient_Struct.append(fileName)  
         #iop and ipp are needed to relate the coordinates of structures to the CT images
         iop = dcmread(patient_CTs[0]).get("ImageOrientationPatient")
@@ -167,17 +178,21 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
         for item in pixelSpacing:
             item *= ssFactor
         for CTFile in patient_CTs:
-            resizedArray = ImageUpsizer(np.array(dcmread(CTFile).pixel_array) , ssFactor)
-            #Now normalize the image so its values are between 0 and 1
-
-            #Anything greater than 2500 Hounsfield units is likely artifact, so cap here.
-            if resizedArray.max() > 2500:
-                resizedArray = np.clip(resizedArray, -1000, 2500)
-
-            #images are now normalized in the dataset, this allows for data augmentation to be performed 
-            #resizedArray = NormalizeImage(resizedArray)
+            ctData = dcmread(CTFile)
             
+            rescaleSlope = ctData[0x0028, 0x1053].value
+            rescaleIntercept = ctData[0x0028, 0x1052].value
+            array = np.array(ctData.pixel_array)
+            array = array * rescaleSlope + rescaleIntercept
+            resizedArray = ImageUpsizer(array , ssFactor)
+            #Now normalize the image so its values are between 0 and 1
+            #Anything greater than 2500 Hounsfield units is likely artifact, so cap here.
+            resizedArray = np.clip(resizedArray, -1000, 2500)
+            resizedArray = NormalizeImage(resizedArray)
+            #images are now normalized in the dataset, this allows for data augmentation to be performed 
+            #resizedArray = NormalizeImage(resizedArray)            
             CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient").value[2]])
+
         CTs.sort(key=lambda x:x[1]) #not necessarily in order, so sort according to z-slice.
         if patientFolders[p] not in patientStructuresDict: #if doesn't have contour, add this CT to the test folder
             testImagePath = "Processed_Data/" + organ + "_Test/TestData_" + patientFolders[p]
@@ -190,8 +205,11 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
                     pickle.dump(image , fp)
                     #saving the images
             continue
+
+
         roiNumber = patientStructuresDict[patientFolders[p]][1]
-        structsMeta = dcmread(patient_Struct[0]).data_element("ROIContourSequence")
+        struct_idx = patientStructuresDict[patientFolders[p]][2]
+        structsMeta = dcmread(patient_Struct[struct_idx]).data_element("ROIContourSequence")
         #print(dcmread(patient1_Struct[0]).data_element("ROIContourSequence")[0])
         #collect array of contour points for test plotting
         numContourPoints = 0 
@@ -358,7 +376,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
             else:
                 with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                with open(os.path.join(path, str(testContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
                         pickle.dump(contourOnPlane[zSlice], fp)  
 
 def GetPredictionCTs(patientName, path):
@@ -385,8 +403,13 @@ def GetPredictionCTs(patientName, path):
     patient_CTs = []
 
     for fileName in patientFolder:
-        if "CT" in fileName and "STRUCT" not in fileName:
-            patient_CTs.append(os.path.join(patientPath, fileName))  
+        #get the modality: 
+        fileNameAbsolute = os.path.join(os.getcwd(),"Patient_Files", patientName, fileName)
+
+        patientData = pydicom.dcmread(fileNameAbsolute)
+        modality = patientData[0x0008,0x0060].value 
+        if "CT" == modality: 
+            patient_CTs.append(fileNameAbsolute)
     iop = dcmread(patient_CTs[0]).get("ImageOrientationPatient")
     ipp = dcmread(patient_CTs[0]).get("ImagePositionPatient")
     #also need the pixel spacing
@@ -399,11 +422,19 @@ def GetPredictionCTs(patientName, path):
     for item in pixelSpacing:
         item *= ssFactor
     for CTFile in patient_CTs:
-        resizedArray = ImageUpsizer(np.array(dcmread(CTFile).pixel_array) , ssFactor)
-        #Anything greater than 2700 Hounsfield units is likely artifact, so cap here.
-        if resizedArray.max() > 2700:
-            resizedArray = np.clip(resizedArray, -1000, 2700)
-        resizedArray = NormalizeImage(resizedArray) 
+        ctData = dcmread(CTFile)       
+        rescaleSlope = ctData[0x0028, 0x1053].value
+        rescaleIntercept = ctData[0x0028, 0x1052].value
+        array = np.array(ctData.pixel_array)
+        array = array * rescaleSlope + rescaleIntercept
+        resizedArray = ImageUpsizer(array , ssFactor)
+        #Now normalize the image so its values are between 0 and 1
+        #Anything greater than 2500 Hounsfield units is likely artifact, so cap here.
+        resizedArray = np.clip(resizedArray, -1000, 2500)
+        resizedArray = NormalizeImage(resizedArray)
+        #images are now normalized in the dataset, this allows for data augmentation to be performed 
+        #resizedArray = NormalizeImage(resizedArray)            
+
         CTs.append([resizedArray, dcmread(CTFile).data_element("ImagePositionPatient"), pixelSpacing, sliceThickness])
     CTs.sort(key=lambda x:x[1][2]) #not necessarily in order, so sort according to z-slice.
 
@@ -421,6 +452,7 @@ def GetDICOMContours(patientName, organ, path):
         organ (str) the organ to get contours of
         path (str): the path to the directory containing 
             organogenesis folders (Models, Processed_Data, etc.)
+        scalePixels (bool) True if the contours are to be scaled by their pixel spacing values (such as for when computing volumes)   
 
     Returns: 
         contours (list): a list of lists. Each item is a list 
@@ -435,17 +467,19 @@ def GetDICOMContours(patientName, organ, path):
     patientPath = "Patient_Files/" + patientName
     #get the list of patient folders
     patientPath = os.path.join(path, patientPath)
-    patientFolder = sorted(os.listdir(patientPath))
+    patientFolder = sorted(glob.glob(os.path.join(patientPath, "*")))
 
-    structFile = ""
+    structFiles = []    
     for fileName in patientFolder:
-        if "STRUCT" in fileName:
-            structFile = os.path.join(patientPath, fileName)   
-    structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-    _, roiNumber = FindStructure(dcmread(structFile).data_element("StructureSetROISequence"), organ)        
+        #get the modality: 
+        patientData = pydicom.dcmread(fileName)
+        modality = patientData[0x0008,0x0060].value 
+        if "STRUCT" in modality:
+            structFiles.append(fileName)  
+    #structsMeta = dcmread(structFile).data_element("ROIContourSequence")
+    _, roiNumber, fileNum = FindStructure(structFiles, organ)   
     
-    structsMeta = dcmread(structFile).data_element("ROIContourSequence")
-    #print(dcmread(patient1_Struct[0]).data_element("ROIContourSequence")[0])
+    structsMeta = dcmread(structFiles[fileNum]).data_element("ROIContourSequence")
     #collect array of contour points for test plotting
     numContourPoints = 0 
     contours = []
@@ -457,6 +491,7 @@ def GetDICOMContours(patientName, organ, path):
                 tempContour = []
                 i = 0
                 while i < len(contours[-1]):
+  
                     x = float(contours[-1][i])
                     y = float(contours[-1][i + 1])
                     z = float(contours[-1][i + 2])
@@ -473,13 +508,12 @@ def GetDICOMContours(patientName, organ, path):
         pickle.dump(contours, fp)  
     return contours
                 
-def FindStructure(metadata, organ, invalidStructures = []):
+def FindStructure(structureList, organ, invalidStructures = []):
     """Finds the matching structure to a given organ in a patient's
        dicom file metadata. 
      
     Args:
-        metadata (DataElement): the data contained in the 
-            StructureSetROISequence of the patient's dicom file
+        structureList (List): a list of paths to RTSTRUCT files in the patient folder
         organ (str): the organ to find the matching structure for
         invaidStructures (list): a list of structures that the matching 
             structure cannot be, defaults to an empty list
@@ -498,9 +532,20 @@ def FindStructure(metadata, organ, invalidStructures = []):
 
     #Get a list of all structures in structure set: 
     unfilteredStructures = []
-    for element in metadata:
-        if element.get("ROIName").lower() not in invalidStructures:
-            unfilteredStructures.append(element.get("ROIName").lower())           
+
+    for fileNum, file in enumerate(structureList):
+        
+        roiSequence = pydicom.dcmread(file).data_element("StructureSetROISequence")
+        for element in roiSequence:
+            if element.get("ROIName").lower() not in invalidStructures:
+                #first check if need to do special matching for limbus name:
+                if element.get("ROIName").lower() == "sm_l" and organ  == "Left Submandibular":
+                    roiNumber = element.get("ROINumber")
+                    return element.get("ROIName").lower(), roiNumber, fileNum
+                if element.get("ROIName").lower() == "sm_r" and organ  == "Right Submandibular":
+                    roiNumber = element.get("ROINumber")
+                    return element.get("ROIName").lower(), roiNumber, fileNum    
+                unfilteredStructures.append(element.get("ROIName").lower())           
     #Now find which is the best fit.
     #First filter out any structures without at least a 3 character substring in common
     structures = []
@@ -524,15 +569,19 @@ def FindStructure(metadata, organ, invalidStructures = []):
                 break
     
     if len(closestStrings) == 0:
-        return "", 1111    
+        return "", 1111, 0    
     #Now return the organ that is remaining and has closest string
-    for element in metadata:
-        if element.get("ROIName").lower() == closestStrings[0][0]:
-            roiNumber = element.get("ROINumber")
+    fileNum = -1
+    for file in structureList:
+        fileNum = fileNum + 1
+        roiSequence = pydicom.dcmread(file).data_element("StructureSetROISequence")
+        for element in roiSequence:
+            if element.get("ROIName").lower() == closestStrings[0][0]:
+                roiNumber = element.get("ROINumber")
     try:
-        return closestStrings[0][0], roiNumber 
+        return closestStrings[0][0], roiNumber, fileNum
     except:
-        return "", 1111 #error code for unfound match.    
+        return "", 1111, 0 #error code for unfound match.                                                                                                          
 
 def AllowedToMatch(s1, s2):
     """Determines whether or not s1 and s2 are allowed to match 
@@ -554,6 +603,7 @@ def AllowedToMatch(s1, s2):
     keywords = []
     #You can't have only one organ with one of these keywords...
     keywords.append("prv")
+    keywords.append("tub")
     keywords.append("brain")
     keywords.append("ptv")
     keywords.append("stem")
@@ -588,18 +638,18 @@ def AllowedToMatch(s1, s2):
         if "l" not in s1:
             allowed = False    
     #its tricky matching up left and right organs sometimes with all the conventions used... this makes sure that both are left or both are right
-    if ("_l_" in s1) or (" l " in s1) or  (" l-" in s1) or ("-l-" in s1) or (" l_" in s1) or ("_l " in s1) or ("-l " in s1) or ("left" in s1) or ("l " == s1[0:2]) or ("_lt_" in s1) or (" lt " in s1) or  (" lt-" in s1) or ("-lt-" in s1) or (" lt_" in s1) or ("_lt " in s1) or ("-lt " in s1) or ("lt " == s1[0:3]):
-        if not (("lpar" in s2) or ("lsub" in s2) or ("_l_" in s2) or (" l " in s2) or  (" l-" in s2) or ("-l-" in s2) or (" l_" in s2) or ("_l " in s2) or ("-l " in s2) or ("left" in s2) or ("l " == s2[0:2])or ("_lt_" in s2) or (" lt " in s2) or  (" lt-" in s2) or ("-lt-" in s2) or (" lt_" in s2) or ("_lt " in s2) or ("-lt " in s2) or ("lt " == s2[0:3])):   
+    if ("_l_" in s1) or (" l " in s1) or  (" l-" in s1) or ("-l-" in s1) or (" l_" in s1) or ("_l " in s1) or ("-l " in s1) or ("left" in s1) or ("l " == s1[0:2]) or ("_lt_" in s1) or (" lt " in s1) or  (" lt-" in s1) or ("-lt-" in s1) or (" lt_" in s1) or ("_lt " in s1) or ("-lt " in s1) or ("lt " == s1[0:3]) or ("_l" == s1[-2:]):
+        if not (("lpar" in s2) or ("lsub" in s2) or ("_l_" in s2) or (" l " in s2) or  (" l-" in s2) or ("-l-" in s2) or (" l_" in s2) or ("_l " in s2) or ("-l " in s2) or ("left" in s2) or ("l " == s2[0:2])or ("_lt_" in s2) or (" lt " in s2) or  (" lt-" in s2) or ("-lt-" in s2) or (" lt_" in s2) or ("_lt " in s2) or ("-lt " in s2) or ("lt " == s2[0:3]) or ("_l" == s2[-2:])):   
             allowed = False  
-    if (("_l_" in s2) or (" l " in s2) or  (" l-" in s2) or ("-l-" in s2) or (" l_" in s2) or ("_l " in s2) or ("-l " in s2) or ("left" in s2) or ("l " == s2[0:2])or ("_lt_" in s2) or (" lt " in s2) or  (" lt-" in s2) or ("-lt-" in s2) or (" lt_" in s2) or ("_lt " in s2) or ("-lt " in s2)or ("lt " == s2[0:3])):  
-        if not (("lpar" in s1) or ("lsub" in s1) or ("_l_" in s1) or (" l " in s1) or  (" l-" in s1) or ("-l-" in s1) or (" l_" in s1) or ("_l " in s1) or ("-l " in s1) or ("left" in s1) or ("l " == s1[0:2]) or ("_lt_" in s1) or (" lt " in s1) or  (" lt-" in s1) or ("-lt-" in s1) or (" lt_" in s1) or ("_lt " in s1) or ("-lt " in s1) or ("lt " == s1[0:3])):
+    if (("_l_" in s2) or (" l " in s2) or  (" l-" in s2) or ("-l-" in s2) or (" l_" in s2) or ("_l " in s2) or ("-l " in s2) or ("left" in s2) or ("l " == s2[0:2])or ("_lt_" in s2) or (" lt " in s2) or  (" lt-" in s2) or ("-lt-" in s2) or (" lt_" in s2) or ("_lt " in s2) or ("-lt " in s2)or ("lt " == s2[0:3]) or ("_l" == s2[-2:])):  
+        if not (("lpar" in s1) or ("lsub" in s1) or ("_l_" in s1) or (" l " in s1) or  (" l-" in s1) or ("-l-" in s1) or (" l_" in s1) or ("_l " in s1) or ("-l " in s1) or ("left" in s1) or ("l " == s1[0:2]) or ("_lt_" in s1) or (" lt " in s1) or  (" lt-" in s1) or ("-lt-" in s1) or (" lt_" in s1) or ("_lt " in s1) or ("-lt " in s1) or ("lt " == s1[0:3]) or ("_l" == s1[-2:])):
             allowed = False        
     
-    if ("_r_" in s1) or (" r " in s1) or  (" r-" in s1) or ("-r-" in s1) or (" r_" in s1) or ("_r " in s1) or ("-r " in s1) or ("right" in s1) or ("r " == s1[0:2])or ("_rt_" in s1) or (" rt " in s1) or  (" rt-" in s1) or ("-rt-" in s1) or (" rt_" in s1) or ("_rt " in s1) or ("-rt " in s1)or ("right" in s1):
-        if not (("rpar" in s2) or ("rsub" in s2) or ("_r_" in s2) or (" r " in s2) or  (" r-" in s2) or ("-r-" in s2) or (" r_" in s2) or ("_r " in s2) or ("-r " in s2) or ("right" in s2) or ("r " == s2[0:2]) or ("_rt_" in s2) or (" rt " in s2) or  (" rt-" in s2) or ("-rt-" in s2) or (" rt_" in s2) or ("_rt " in s2) or ("-rt" in s2) ):   
+    if ("_r_" in s1) or (" r " in s1) or  (" r-" in s1) or ("-r-" in s1) or (" r_" in s1) or ("_r " in s1) or ("-r " in s1) or ("right" in s1) or ("r " == s1[0:2])or ("_rt_" in s1) or (" rt " in s1) or  (" rt-" in s1) or ("-rt-" in s1) or (" rt_" in s1) or ("_rt " in s1) or ("-rt " in s1)or ("right" in s1) or ("_r" == s1[-2:]):
+        if not (("rpar" in s2) or ("rsub" in s2) or ("_r_" in s2) or (" r " in s2) or  (" r-" in s2) or ("-r-" in s2) or (" r_" in s2) or ("_r " in s2) or ("-r " in s2) or ("right" in s2) or ("r " == s2[0:2]) or ("_rt_" in s2) or (" rt " in s2) or  (" rt-" in s2) or ("-rt-" in s2) or (" rt_" in s2) or ("_rt " in s2) or ("-rt" in s2) or ("_r" == s2[-2:])):   
             allowed = False
-    if (("_r_" in s2) or (" r " in s2) or  (" r-" in s2) or ("-r-" in s2) or (" r_" in s2) or ("_r " in s2) or ("-r " in s2) or ("right" in s2) or ("r " == s2[0:2]) or ("_rt_" in s2) or (" rt " in s2) or  (" rt-" in s2) or ("-rt-" in s2) or (" rt_" in s2) or ("_rt " in s2) or ("-rt" in s2) ): 
-        if not (("rpar" in s1) or ("rsub" in s1) or ("_r_" in s1) or (" r " in s1) or  (" r-" in s1) or ("-r-" in s1) or (" r_" in s1) or ("_r " in s1) or ("-r " in s1) or ("right" in s1) or ("r " == s1[0:2])or ("_rt_" in s1) or (" rt " in s1) or  (" rt-" in s1) or ("-rt-" in s1) or (" rt_" in s1) or ("_rt " in s1) or ("-rt " in s1)):
+    if (("_r_" in s2) or (" r " in s2) or  (" r-" in s2) or ("-r-" in s2) or (" r_" in s2) or ("_r " in s2) or ("-r " in s2) or ("right" in s2) or ("r " == s2[0:2]) or ("_rt_" in s2) or (" rt " in s2) or  (" rt-" in s2) or ("-rt-" in s2) or (" rt_" in s2) or ("_rt " in s2) or ("-rt" in s2) or ("_r" == s2[-2:])): 
+        if not (("rpar" in s1) or ("rsub" in s1) or ("_r_" in s1) or (" r " in s1) or  (" r-" in s1) or ("-r-" in s1) or (" r_" in s1) or ("_r " in s1) or ("-r " in s1) or ("right" in s1) or ("r " == s1[0:2])or ("_rt_" in s1) or (" rt " in s1) or  (" rt-" in s1) or ("-rt-" in s1) or (" rt_" in s1) or ("_rt " in s1) or ("-rt " in s1) or ("_r" == s1[-2:])):
             allowed = False
     return allowed
 
@@ -647,7 +697,7 @@ def LongestSubstring(s1,s2):
                     lcs_set.add(s1[i-c+1:i+1])
                 elif c == longest:
                     lcs_set.add(s1[i-c+1:i+1])
-    return longest  
+    return longest   
 
 
 def NormalizeImage(image):
@@ -681,6 +731,8 @@ def ImageUpsizer(array, factor):
         newArray (2D numpy array): the supersized array
 
     """
+    if factor == 1: 
+        return array
 
     #Take an array and supersize it by the factor given
     xLen, yLen = array.shape

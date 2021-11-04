@@ -12,17 +12,17 @@ import argparse
 import pickle 
 import pathlib
 import os 
-import DicomSaving
+import DicomSaving 
 
 #Create a dictionary of organs and regular expressions for organs
 organOps ={
     "Body": re.compile(r"body?"), 
     "Spinal Cord": re.compile(r"(spi?n?a?l)?(-|_| )?cord"),
-    "Oral Cavity": re.compile(r"or?a?l(-|_| )cavi?t?y?"),
-    "Left Parotid": re.compile(r"le?f?t?(-|_| )(par)o?t?i?d?"),
-    "Right Parotid": re.compile(r"ri?g?h?t?(-|_| )(par)o?t?i?d?"),
-    "Left Submandibular": re.compile(r"le?f?t(-|_| )subma?n?d?i?b?u?l?a?r?"),
-    "Right Submandibular": re.compile(r"ri?g?h?t?(-|_| )subma?n?d?i?b?u?l?a?r?"),
+    "Oral Cavity": re.compile(r"or?a?l(-|_| )?cavi?t?y?"),
+    "Left Parotid": re.compile(r"le?f?t?(-|_| )?(par)o?t?i?d?"),
+    "Right Parotid": re.compile(r"ri?g?h?t?(-|_| )?(par)o?t?i?d?"),
+    "Left Submandibular": re.compile(r"le?f?t(-|_| )?subma?n?d?i?b?u?l?a?r?"),
+    "Right Submandibular": re.compile(r"ri?g?h?t?(-|_| )?subma?n?d?i?b?u?l?a?r?"),
     "Brainstem": re.compile(r"b?r?a?i?n?stem"),
     "Larynx": re.compile(r"lary?n?(x|g?o?p?h?a?r?y?n?x?)?"),
     "Brain": re.compile(r"brain"),
@@ -34,6 +34,8 @@ organOps ={
     "Lips": re.compile(r"lips?"),
     "Mandible": re.compile(r"mand?ible?"),
     "Optic Nerves": re.compile(r"opti?c?(-|_| )?nerv?e?"),
+    "Left Tubarial": re.compile(r"le?f?t?(-|_| )?(tub)a?r?i?a?l?"),
+    "Right Tubarial": re.compile(r"ri?g?h?t?(-|_| )?(tub)a?r?i?a?l?"),
     "All": re.compile(r"all")
 }
 #Create a list of possible functions
@@ -51,7 +53,7 @@ def main():
     print("------------------")
 
     #Keep a list of available structures for training/predicting
-    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "Left Submandibular", "Right Submandibular", "Brainstem","All"] 
+    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "Left Submandibular", "Right Submandibular", "Brainstem","Left Tubarial", "Right Tubarial", "All"] 
 
     #Need to get user input. Make a string to easily ask for a number corresponding to an OAR.
     ChooseOAR_string = "Please enter the number(s) for the organ(s) you wish to contour / train a model for. Separate the numbers with spaces \n>>"
@@ -90,8 +92,8 @@ def main():
     chooseTask_string += "\n3. Determine the best threshold accuracy for predicting"
     chooseTask_string += "\n4. Determine the evaulation data (F score and 95th percentile Haussdorff distance) for the validation set"
     chooseTask_string += "\n5. Plot predicted masks"
-    chooseTask_string += "\n6. Export model to ONNX" #Not worrying about this anymore for now
-    chooseTask_string += "\n7. predict using ONNX model \n>>" #Not worrying about this anymore for now
+    chooseTask_string += "\n6. Threshold Rescaling" #Not worrying about this anymore for now
+    chooseTask_string += "\n7. Get Volume Stats \n>>" #Not worrying about this anymore for now
     
     while True: #get user input
         try:
@@ -103,26 +105,32 @@ def main():
         except: pass   
 
     if (task == 1):
-        Train.Train(chosenOARs[0], 35, 1e-3, path="/media/calebsample/Data/patients", processData=False, loadModel=True, modelType = "UNet", sortData=False, preSorted=False)
-        #Test.Best_Threshold(OARs[chosenOAR],400)
+        Train.Train(chosenOARs[0], 10, 1e-4, path=None, processData=False, loadModel=True, modelType = "UNet", sortData=False, preSorted=False)
+        Test.Best_Threshold(chosenOARs[0],500)
+        #PostProcessing.ThresholdRescaler(chosenOARs[0], modelType = "UNet", path=None)
+        
         #Test.TestPlot(OARs[chosenOAR], path=None, threshold=0.1)  
 
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"HN1004",path = None, modelType = "unet", thresholdList = [0.8], withReal=True, tryLoad=False) 
+        Predict.GetMultipleContours(chosenOARs,"CT_173347",path = None,  thresholdList = [0.3], modelTypeList = ["unet"], withReal=True, tryLoad=False, save=True) 
         
     elif task == 3:
-        Test.BestThreshold(chosenOARs[0], path=None, testSize=500, modelType = "multiresunet")
+        Test.BestThreshold(chosenOARs[0], path=None, modelType = "unet")
     elif task == 4:
-        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.2, path = None, modelType = "multiresunet")    
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.3, path = None, modelType = "unet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:
-        #array, y = Test.GetMasks(OARs[chosenOAR], "P10", path=None, threshold=0.7, modelType = "UNet")
+        #array, y = Test.GetMasks(OARs[chosenOAR], "P10", path=None, threshold=0.7, modelType = "UNet") 
         #import numpy as np
         #print(np.amax(y))
         ##print(np.amax(array))
-        #Test.TestPlot(chosenOARs[0], path=None, threshold=0.7, modelType = "UNet") 
-        Test.PercentStats(chosenOARs[0], path = None)
+        Test.TestPlot(chosenOARs[0], path=None, threshold=0.4, modelType = "UNet") 
+        #Test.PercentStats(chosenOARs[0], path = None)
+    elif task == 6:
+        PostProcessing.ThresholdRescaler(chosenOARs[0], modelType = "UNet", path=None)     
+    elif task == 7:
+        Test.GetTrainingVolumeStats(chosenOARs[0], path=None)        
 
 if __name__ == "__main__":
     
@@ -131,7 +139,7 @@ if __name__ == "__main__":
         description="Organogenesis: an open source program for autosegmentation of medical images"
     )
     parser.add_argument('-o', "--organs", help="Specify organ(s) to train/evaluate a model for or predict/generate contours with. Include a single space between organs. \
-        Please choose from:\n body, \n brain, \n brainstem, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \n right-parotid, \n left-parotid, \n spinal-cord,\n right-submandibular, \n left-submandibular, \n all\n", nargs = '+', default=None, type = str)
+        Please choose from:\n body, \n brain, \n brainstem, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \n right-parotid, \n left-parotid, \n spinal-cord,\n right-submandibular, \n left-submandibular, \n right-tubarial, \n left-tubarial,\n all\n", nargs = '+', default=None, type = str)
     parser.add_argument('-f', "--function", help = "Specify the function to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
         \"GetContours\": to obtain predicted contours for a patient, \"BestThreshold\": to find the best threhold for maximizing a model's F score, \"GetEvalData\": to calculate the F score, recall, precision, accuracy and 95th percentile Haussdorff distance for the given organ's model, \
         \"PlotMasks\": to plot 2d CTs with both manually drawn and predicted masks for visual comparison", default=None, type=str)
@@ -299,7 +307,7 @@ if __name__ == "__main__":
         dataAugmentation = args.dataAugmentation
 
         Train.Train(organsList[0], numEpochs, lr, dataPath, processData, loadModel, modelType, sortData, preSorted, dataAugmentation)
-        bestThreshold = Test.BestThreshold(organsList[0], dataPath, modelType = modelType, testSize = 400)
+        bestThreshold = Test.BestThreshold(organsList[0], dataPath, modelType = modelType)
 
         Test.TestPlot(organsList[0], dataPath, threshold=bestThreshold, modelType = modelType)  
 
@@ -397,7 +405,7 @@ if __name__ == "__main__":
                     dataFiles = os.listdir(dataFolder)
                     if len(dataFiles) > 0:
                         print("\nBest threshold has not been determined for " + modelTypeList[i] + " " + organsList[i] + " predictions. Launching the BestThreshold function.")
-                        thresList[i] = Test.BestThreshold(organsList[i], path, modelTypeList[i], 500)
+                        thresList[i] = Test.BestThreshold(organsList[i], path, modelTypeList[i])
                     else: 
                         while True:
                                 try:
@@ -462,7 +470,7 @@ if __name__ == "__main__":
                     quit()
                 except: pass  
 
-        Test.BestThreshold(organsList[0], path, modelType, 500)
+        Test.BestThreshold(organsList[0], path, modelType)
 
     elif args.function == "GetEvalData":
         if len(organsList) > 1:
@@ -514,7 +522,7 @@ if __name__ == "__main__":
                 dataFiles = os.listdir(dataFolder)
                 if len(dataFiles) > 0:
                     print("\nBest threshold has not been determined for " + modelType + " " + organsList[i] + " predictions. Launching the BestThreshold function.")
-                    thres = Test.BestThreshold(organsList[i], path, modelType, 500)
+                    thres = Test.BestThreshold(organsList[i], path, modelType)
                 else: 
                     while True:
                         try:
@@ -580,7 +588,7 @@ if __name__ == "__main__":
                 dataFiles = os.listdir(dataFolder)
                 if len(dataFiles) > 0:
                     print("\nBest threshold has not been determined for " + modelType + " " + organsList[i] + " predictions. Launching the BestThreshold function.")
-                    thres = Test.BestThreshold(organsList[i], path, modelType, 500)
+                    thres = Test.BestThreshold(organsList[i], path, modelType)
                 else: 
                     while True:
                         try:

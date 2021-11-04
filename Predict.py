@@ -58,14 +58,12 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
-    model.eval()
     contoursList = [] #The 1d contours list to be returned
     existingContoursList = []
     #Make a list for all the contour images
     try: 
         CTs = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + patientName + "_Processed.txt")), 'rb'))  
     except:
-
         CTs = DicomParsing.GetPredictionCTs(patientName, path)
     if tryLoad:
         try:
@@ -92,7 +90,6 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
                 contourImage, contourPoints = PostProcessing.MaskToContour(prediction[0,0,:,:])
                 contourImages.append(contourImage)
                 contours.append(contourPoints)  
-       
             contours = PostProcessing.FixContours(contours)  
             contours = PostProcessing.AddZToContours(contours,zValues)                   
             contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
@@ -125,17 +122,21 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
             x = torch.reshape(x, (1,1,xLen,yLen)).float()
 
             predictionRaw = (model(x)).cpu().detach().numpy()
-            prediction = predictionRaw
-            prediction[0,0,:,:] = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
-            contourImage, contourPoints = PostProcessing.MaskToContour(prediction[0,0,:,:])
+            prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
+            # fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(15, 15))
+            # axs.imshow(prediction)
+            # axs.set_title("Original Image")
+            # plt.show()
+            
+            contourImage, contourPoints = PostProcessing.MaskToContour(prediction)
             contourImages.append(contourImage)
             contours.append(contourPoints)  
         
         contours = PostProcessing.FixContours(contours)  
         contours = PostProcessing.AddZToContours(contours,zValues)                   
         contours = DicomParsing.PixelToContourCoordinates(contours, ipp, zValues, pixelSpacing, sliceThickness)
-        contours = PostProcessing.InterpolateSlices(contours, patientName, organ, path, sliceThickness)
-
+        #contours = PostProcessing.InterpolateSlices(contours, patientName, organ, path, sliceThickness)
+        contours = PostProcessing.AddInterpolatedPoints(contours)
         for layer_idx in range(len(contours)):
             if len(contours[layer_idx]) > 0:
                 for point_idx in range(len(contours[layer_idx])):
@@ -144,7 +145,8 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
                     z = contours[layer_idx][point_idx][2]
                     contoursList.append(x)
                     contoursList.append(y)
-                    contoursList.append(z)
+                    contoursList.append(z) 
+                    
 
         with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName + "_predictedContours.txt")), "wb") as fp:
             pickle.dump([contourImages, contours], fp)      
@@ -215,6 +217,7 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeLi
     contours = []
     existingContours = []
     contoursList = []
+
 
     for i, organ in enumerate(organList): 
         print("\nPredicting contours for the " + organ + " with the threshold " + str(thresholdList[i]))

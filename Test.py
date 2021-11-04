@@ -1,5 +1,6 @@
 import numpy as np 
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+from numpy.lib.function_base import average, percentile 
 import Model
 import Predict
 import DicomParsing
@@ -16,8 +17,83 @@ import plotly.graph_objects as graph_objects
 from mpl_toolkits.mplot3d import Axes3D 
 from matplotlib import cm
 from scipy.spatial.distance import directed_hausdorff
+from DicomParsing import GetDICOMContours
 import math
 from scipy.spatial import ConvexHull
+
+def GetTrainingVolumeStats(roi, path):
+    """Gets the average volume of all organ ROIs in the patient files.
+    
+    Args:
+        organ (str): the name of the roi which is of interest
+        path (str): path to the directory containing patient directories.
+        return: None
+
+        Produces a text file in the program directory's "Statistics" folder
+
+    """
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()   
+    sliceSeparations = [] #Keep track of slice separation and send error message if there is more than one (gaps .. islands?)    
+    num_rois = 0
+    volumes = []
+    patientFiles = os.listdir(os.path.join(path, "Patient_Files"))
+
+    for file in patientFiles:
+        
+
+        patientVolume = 0
+        contours = GetDICOMContours(file, roi, path)
+        if len(contours) == 0:
+            continue
+        print("Loading patient: " + file + " for volume calculation.")    
+        for slice_idx in range(len(contours)-1):
+            #create the list of contour points at the specified z value 
+            slice = contours[slice_idx]
+            if len(slice) == 0:
+                continue
+            sliceAbove = contours[slice_idx+1]
+            if len(sliceAbove) == 0:
+                continue
+            sliceArea = Area_of_Slice(slice)
+            sliceAboveArea = Area_of_Slice(sliceAbove)
+            sliceSeparation = abs(contours[slice_idx+1][0][2] - contours[slice_idx][0][2])
+            patientVolume = patientVolume + (sliceSeparation *(sliceArea + sliceAboveArea) / 2)
+
+            if sliceSeparation not in sliceSeparations:
+                sliceSeparations.append(sliceSeparation)
+            volumes.append(patientVolume)    
+
+    if len(sliceSeparations) > 1:
+        print("Multiple separations in adjacent contour slices found. Islands may be affecting the volume calculation for patient: " + file)
+    if volumes == []:
+        raise Exception("No organ volumes were calculated.")           
+    averageVolume = 0
+    numVolumes = 0      
+    for volume in volumes:
+        if volume != 0:
+            numVolumes = numVolumes + 1
+            averageVolume = averageVolume + volume
+    averageVolume = averageVolume / numVolumes
+    with open(os.path.join(path, "Statistics", str(roi.replace(" ", "") + "_volume.txt")), "w") as fp:
+        fp.write(str(averageVolume))
+    return averageVolume        
+
+
+
+def Area_of_Slice(slice):
+    if len(slice) == 0:
+        return 0
+    pointsList = []
+    for i in range(len(slice)):
+        pointsList.append([slice[i][0], slice[i][1]])
+    points = np.array(pointsList)
+
+    hull = ConvexHull(points)
+    area = hull.area
+
+    return area
+
 
 def TestPlot(organ, path, threshold, modelType):
     """Plots 2D CTs with both manually drawn and predicted masks 
@@ -42,7 +118,6 @@ def TestPlot(organ, path, threshold, modelType):
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)    
-    model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(path, dataPath)
     dataFiles = os.listdir(dataFolder)
@@ -52,22 +127,28 @@ def TestPlot(organ, path, threshold, modelType):
         imagePath = dataFiles[d]
         #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
-        data[0][0, :, :] = NormalizeImage(data[0][0, :, :])
+        if np.amax(data[0][1,:,:]) == 0:
+            continue
+        #print(np.amax(data[0][1,:,:]))
         x = torch.from_numpy(data[0][0, :, :])
-        y = torch.from_numpy(data[0][1:2, :,:])
+        y = torch.from_numpy(data[0][1, :,:])
+        
         x = x.to(device)
         y = y.to(device)
         xLen, yLen = x.shape
         #need to reshape 
         x = torch.reshape(x, (1,1,xLen,yLen)).float()
         y = torch.reshape(y, (1,1,xLen,yLen)).float()   
-        predictionRaw = (model(x)).cpu().detach().numpy()
+        prediction = (model(x)).cpu().detach().numpy()
         #now post-process the image
         x = x.cpu()
         y = y.cpu()
         x = x.numpy()
         y = y.numpy()
-        prediction = PostProcessing.Process(predictionRaw[0,0,:,:], threshold)
+        # prediction = prediction[0,0,:,:]
+        # print(np.amax(prediction))
+        prediction = PostProcessing.Process(prediction[0,0,:,:], threshold)
+        
 
         maskOnImage = MaskOnImage(x[0,0,:,:], prediction) #this puts the mask ontop of the CT image
         ROIOnImage = MaskOnImage(x[0,0,:,:], y[0,0,:,:])
@@ -76,14 +157,14 @@ def TestPlot(organ, path, threshold, modelType):
         
         #predictedContour = PostProcessing.MaskToContour(prediction[0,0,:,:])
         #contour = PostProcessing.MaskToContourImage(y[0,0,:,:])
-        axs[0,0].imshow(ROIOnImage, cmap = "gray")
+        axs[0,0].imshow(ROIOnImage)
         axs[0,0].set_title("Original Image")
         #axs[0,1].hist(predictionRaw[0,0,:,:], bins=5)
-        axs[0,1].imshow(maskOnImage, cmap = "gray")
+        axs[0,1].imshow(maskOnImage)
         axs[0,1].set_title("Mask on Image")
-        axs[1,0].imshow(y[0,0, :,:], cmap = "gray")
+        axs[1,0].imshow(y[0,0, :,:])
         axs[1,0].set_title("Original Mask")
-        axs[1,1].imshow(prediction, cmap="gray")
+        axs[1,1].imshow(prediction)
         axs[1,1].set_title("Predicted Mask")
 
         
@@ -124,7 +205,6 @@ def GetMasks(organ, patientName, path, threshold, modelType):
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))    
     model = model.to(device)    
-    model.eval()
 
     dataPath = 'Processed_Data/' + organ + "_Test/" #Currently looking for patients in the test folder. 
     dataFolder = os.path.join(path, dataPath)
@@ -203,7 +283,7 @@ def NormalizeImage(image):
     amin = np.amin(image)
     return (image - amin) / ptp    
 
-def BestThreshold(organ, path, modelType, testSize=500):
+def BestThreshold(organ, path, modelType, testSize=400):
     """Determines the best threshold for predicting contours based on the 
        F score. Displays graphs of the accuracy, false positives, false
        negatives, and F score vs threshold. Also saves these stats to the
@@ -233,7 +313,6 @@ def BestThreshold(organ, path, modelType, testSize=500):
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)     
-    model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(path, dataPath)
     dataFiles = os.listdir(dataFolder)
@@ -252,33 +331,33 @@ def BestThreshold(organ, path, modelType, testSize=500):
     falseNeg = []
     fScores = []
 
-    thresholds = np.linspace(0.05, 0.9, 11)
+    thresholds = np.linspace(0.05, 0.5, 15)
     
     for thres in thresholds:
         print("\nChecking Threshold: %0.3f"%(thres))
+        totalTPs = 0
+        totalFPs = 0
+        totalFNs = 0
         d = 0
         #get the accuracy and F score for the current threshold value
         thresAccuracy = []
-        thresFP = []
-        thresFN = [] #false pos, neg
         thresFScore = []
         testSize = min(testSize, len(filesRange))
         while d < testSize:
-            numStack = min(200, len(filesRange) - 1 - d)
+            numStack = min(testSize, len(filesRange) - 1 - d)
             p = 0
             concatList = []
             while p < numStack:
                 imagePath = dataFiles[d]
                 image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
-                image[0][:] = NormalizeImage(image[0][:])
                 image = image.reshape((2,1,image.shape[1], image.shape[2]))
                 concatList.append(image)
-                p+=1
-                d+=1
+                p = p + 1
+                d= d + 1
             if len(concatList) == 0:
                 break    
             data = np.concatenate(concatList, axis=1)    #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
-            print('Loaded ' + str(data.shape[1]) + ' images. Proceeding...') 
+            print('Loaded ' + str(numStack) + ' images. Proceeding...') 
             data = torch.from_numpy(data)
             numSlices = data.shape[1]
             slices = list(range(numSlices))
@@ -303,23 +382,31 @@ def BestThreshold(organ, path, modelType, testSize=500):
                 imageFP = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 1))
                 imageTP = np.sum(np.logical_and(thresPrediction == y.numpy(), thresPrediction == 1))
                 imageTN = np.sum(np.logical_and(thresPrediction == y.numpy(), thresPrediction == 0)) 
-                imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))    
-                imageRecall = imageTP/(imageTP+imageFN)
-                imagePrecision = imageTP/(imageTP+imageFP)
-                if imageRecall != 0 and imagePrecision != 0 and math.isnan(imageRecall) == False and math.isnan(imagePrecision) == False:
-                    imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
-                    thresFScore.append(imageFScore)
-                imageAccuracy *= 100/float(prediction.size) 
-                imageFN *= 100 / float(prediction.size)
-                imageFP *= 100 / float(prediction.size)
+                imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))   
+                totalFPs = totalFPs + imageTP
+                totalFNs = totalFNs + imageFN 
+                totalTPs = totalTPs + imageTP 
+                # imageRecall = imageTP/(imageTP+imageFN)
+                # imagePrecision = imageTP/(imageTP+imageFP)
+                # if imageRecall != 0 and imagePrecision != 0 and math.isnan(imageRecall) == False and math.isnan(imagePrecision) == False:
+                #     imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
+                #     thresFScore.append(imageFScore)
+                imageAccuracy = imageAccuracy * 100/float(prediction.size) 
+                imageFN = imageFN * 100 / float(prediction.size)
+                imageFP = imageFP * 100 / float(prediction.size)
                 thresAccuracy.append(imageAccuracy)
-                thresFP.append(imageFP)
-                thresFN.append(imageFN) #false pos, neg
 
         accuracies.append(sum(thresAccuracy) / len(thresAccuracy))
-        fScores.append(sum(thresFScore)/len(thresFScore))
-        falseNeg.append(sum(thresFN)/len(thresFN))
-        falsePos.append(sum(thresFP)/len(thresFP))
+        
+        recall = totalTPs/(totalTPs + totalFNs)
+        precision = totalTPs / (totalTPs + totalFPs)
+        if recall > 0 and precision > 0:
+            fScore = 2/(recall**(-1) + precision ** (-1))
+        else: 
+            fScore = 0    
+        fScores.append(fScore)
+        falseNeg.append(totalFNs)
+        falsePos.append(totalFPs)
     #Now need to determine what the best threshold to use is. Also plot the accuracy, FP, FN, F score:
     fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 10))
 
@@ -415,9 +502,11 @@ def PlotPatientContours(contours, existingContours):
     for layer_idx in range(len(contours)):
         if len(contours[layer_idx]) > 0:
             for point_idx in range(len(contours[layer_idx])):
-                x = contours[layer_idx][point_idx][0]
-                y = contours[layer_idx][point_idx][1]
-                z = contours[layer_idx][point_idx][2]
+                try:
+                    x = contours[layer_idx][point_idx][0]
+                    y = contours[layer_idx][point_idx][1]
+                    z = contours[layer_idx][point_idx][2]
+                except: continue    
                 #print([x,y,z])
                 points.append([x,y,z])
                 if (numPoints > 0):
@@ -427,16 +516,16 @@ def PlotPatientContours(contours, existingContours):
                 numPoints+=1  
               
     orig_stdout = sys.stdout            
-    # with open(os.path.join(pathlib.Path(__file__).parent.absolute(),'pointCloud_LPar.txt'), 'w') as f:
-    #     sys.stdout = f
-    #     for point in range(len(points)):        
-    #         print(str(points[point][0]) + ' ' + str(points[point][1]) + ' ' + str(points[point][2]))
-    #     sys.stdout = orig_stdout    
+    if len(existingContours) == 0:
+        print("Existing contours not found. Plotting only predicted contours.")  
+        pointCloud.points = o3d.utility.Vector3dVector(pointList[:,:3])
+        o3d.visualization.draw_geometries([pointCloud])
+        return
     #Now for original contours from dicom file            
     for layer_idx in range(len(existingContours)):
         if len(existingContours[layer_idx]) > 0:
             for point_idx in range(len(existingContours[layer_idx])):
-                x = existingContours[layer_idx][point_idx][0]-300
+                x = existingContours[layer_idx][point_idx][0]-200
                 y = existingContours[layer_idx][point_idx][1]
                 z = existingContours[layer_idx][point_idx][2]
                 
@@ -445,7 +534,8 @@ def PlotPatientContours(contours, existingContours):
                     pointList = np.vstack((pointList, np.array([x,y,z])))
                 else:
                     pointList = np.array([x,y,z])   
-                numPoints+=1                                          
+                numPoints+=1       
+
     pointCloud.points = o3d.utility.Vector3dVector(pointList[:,:3])
     o3d.visualization.draw_geometries([pointCloud])
 
@@ -477,7 +567,7 @@ def FScore(organ, path, threshold, modelType):
         model = Model.MultiResUNet()
     model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)
-    model = model.eval()
+    #model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(path, dataPath)
     dataFiles = sorted(os.listdir(dataFolder))
@@ -567,11 +657,17 @@ def HaussdorffDistance(organ, path, threshold, modelType):
 
     #want to use the patients in the validation set so get the patient names
     for file in dataFiles:
-        if str(file).split("_")[1] not in patientList:
-            patientList.append(str(file).split("_")[1])
+        splitFile = file.split("_")
+        fileName = splitFile[1]
+        for s in range(2, len(splitFile)-1):
+            fileName = fileName + "_" + splitFile[s]
+        if fileName not in patientList:
+            
+            patientList.append(fileName)
 
     print("Calculating Haussdorff Distance for the " + modelType + " " + organ + " model...")
-
+    if len(patientList) > 20:
+        patientList = patientList[0:21]
     for patientName in patientList: 
         predictedContourList, existingContourList, predictedContour, existingContour = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot = False)
         
@@ -611,9 +707,12 @@ def GetEvalData(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
 
-    F_Score, recall, precision, accuracy = FScore(organ, path, threshold, modelType)
     haussdorffDistance = HaussdorffDistance(organ, path, threshold, modelType)
     haussdorffDistance = float(haussdorffDistance)
+
+    F_Score, recall, precision, accuracy = FScore(organ, path, threshold, modelType)
+    print("F Score:" + str(F_Score))
+    
 
     #create a list of the hyperarameters of the model and the evaluation data
     evalData= []
@@ -621,6 +720,8 @@ def GetEvalData(organ, path, threshold, modelType):
     #load the hyperparamaters of the model
     with open(os.path.join(path, "Models/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
         evalData = pickle.load(fp)
+    
+
 
     evalData.append(["F Score", F_Score])
     evalData.append(["Recall", recall])
@@ -635,7 +736,7 @@ def GetEvalData(organ, path, threshold, modelType):
             for element in data:
                 fp.write(str(element)+ " ")
             fp.write('\n')
-
+    
     return F_Score, recall, precision, accuracy, haussdorffDistance
 
 def PercentStats(organ, path):
@@ -655,8 +756,10 @@ def PercentStats(organ, path):
         path = pathlib.Path(__file__).parent.absolute()  
 
     #get the patient list from the sorted contour lists
-    patientList = pickle.load(open(os.path.join(path, str("Processed_Data/Sorted Contour Lists/" + organ + " Good Contours.txt")), 'rb')) 
-
+    try:
+        patientList = pickle.load(open(os.path.join(path, str("Processed_Data/Sorted Contour Lists/" + organ + " Good Contours.txt")), 'rb')) 
+    except: 
+        patientList = os.listdir(os.path.join(path, "Patient_Files"))
     percentAreaList = []
     percentNumPointsList = []
 
@@ -677,7 +780,7 @@ def PercentStats(organ, path):
             #create the list of contour points at the specified z value 
             pointsList = []
             for i in range(contourArray.shape[0]):
-                if (zValue == contourArray[i,2]):
+                if (round(zValue,2) - round(contourArray[i,2],2) <= 0.1):
                     pointsList.append([contourArray[i,0], contourArray[i,1]])
             points = np.array(pointsList)
             numPoints = len(pointsList)

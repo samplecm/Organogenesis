@@ -1,6 +1,8 @@
 #!/bin/bash
 #Create all the necessary folders for the program to work correctly
-
+if [ ! -d "Statistics" ]; then
+  mkdir "Statistics"
+fi
 if [ ! -d "Evaluation Data" ]; then
   mkdir "Evaluation Data"
 fi
@@ -62,6 +64,13 @@ fi
 if [ ! -d "Left Submandibular" ]; then
   mkdir "Left Submandibular"
 fi
+if [ ! -d "Right Tubarial" ]; then
+  mkdir "Right Tubarial"
+fi
+if [ ! -d "Left Tubarial" ]; then
+  mkdir "Left Tubarial"
+fi
+
 
 cd ../
 
@@ -130,6 +139,12 @@ fi
 
 if [ ! -d "Left Submandibular" ]; then
   mkdir "Left Submandibular"
+fi
+if [ ! -d "Right Tubarial" ]; then
+  mkdir "Right Tubarial"
+fi
+if [ ! -d "Left Tubarial" ]; then
+  mkdir "Left Tubarial"
 fi
 cd ..
 
@@ -361,6 +376,30 @@ if [ ! -d "Left Parotid_Test" ]; then
 fi
 if [ ! -d "Right Parotid_Test" ]; then
   mkdir "Right Parotid_Test"
+fi
+if [ ! -d "Right Tubarial" ]; then
+  mkdir "Right Tubarial"
+fi
+if [ ! -d "Right Tubarial_Test" ]; then
+  mkdir "Right Tubarial_Test"
+fi
+if [ ! -d "Right Tubarial_Val" ]; then
+  mkdir "Right Tubarial_Val"
+fi
+if [ ! -d "Right Tubarial bools" ]; then
+  mkdir "Right Tubarial bools"
+fi
+if [ ! -d "Left Tubarial" ]; then
+  mkdir "Left Tubarial"
+fi
+if [ ! -d "Left Tubarial_Test" ]; then
+  mkdir "Left Tubarial_Test"
+fi
+if [ ! -d "Left Tubarial_Val" ]; then
+  mkdir "Left Tubarial_Val"
+fi
+if [ ! -d "Left Tubarial bools" ]; then
+  mkdir "Left Tubarial bools"
 fi
 
 cd ../

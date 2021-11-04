@@ -1,10 +1,14 @@
-import numpy as np 
+import numpy as np
+from numpy.core.fromnumeric import nonzero 
 import torch
 import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import random_split, dataset 
 import cv2 as cv
 import matplotlib.pyplot as plt
 import math
 import Model
+from Dataset import CTDataset
 import os
 import pathlib
 import random
@@ -12,6 +16,74 @@ import pickle
 import Test
 import DicomParsing
 from scipy.spatial import ConvexHull
+import copy
+
+
+def ThresholdRescaler(organ, modelType, path):
+    #This function goes through the validation set for a specific model and rescales data so that the average prediction value for within a training mask is
+    #0 (before the sigmoid or other processing).
+    #In other words, it implements an intercept to go along with predictions to get a more stable threshold.
+    if path==None: #if a path to data was not supplied, assume that patient data has been placed in the Patient_Files folder in the current directory. 
+        path = pathlib.Path(__file__).parent.absolute() 
+    maskPredictions = []
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
+    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
+    #model.eval()
+    #go through every file in validation set and look for mask images
+    validationPath = os.path.join(path, "Processed_Data", str(organ +"_Val"))
+    dataFiles = os.listdir(validationPath)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
+    print('Determining rescaling factor for ' + organ + " model")
+
+    numFiles = len(dataFiles)
+    numCompleted = 0
+    for image in dataFiles:
+
+        if numCompleted % 10 == 0:
+            print("Finished " + str(numCompleted) + "/" + str(numFiles))
+        numCompleted = numCompleted + 1
+        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
+        data = pickle.load(open(os.path.join(validationPath, image), 'rb'))
+        # if np.amax(data[0][1,:,:] != 0): #if there is no mask on this image         
+        #     continue
+        if np.amax(data[0][1,:,:]) == 0: #if there is no mask on this image         
+            continue
+
+        x = torch.from_numpy(data[0][0, :, :])
+        y = data[0][1,:,:]
+        x = x.to(device)
+
+        xLen, yLen = x.shape
+        #need to reshape 
+        x = torch.reshape(x, (1,1,xLen,yLen)).float()
+        prediction = (model(x)).cpu().detach().numpy()
+        print(np.amax(prediction[0,0,:,:]))
+        plt.imshow(data[0][0,:,:])
+        #plt.imshow(prediction[0,0,:,:])
+        plt.show()
+        #filter out any pixels that aren't in the mask
+        maskPixels = y * prediction[0,0,:,:]
+        nonZeroVals = maskPixels[np.nonzero(maskPixels)]
+        for val in nonZeroVals:
+            maskPredictions.append(val)
+        
+    averageVal = np.average(maskPredictions)
+
+    #Now the intercept is the difference between the 0 and the averageVal.
+    intercept = - averageVal  
+    print("Calculated intercept for model to be " + str(intercept))
+    saveFileName = organ + "_" + modelType + "ScaleFactor.txt"  
+    with open(os.path.join(path, "Models/ScalingFactors", saveFileName ), 'wb') as pick:
+        pickle.dump(intercept, pick)    
+
+
+
+
 
 
 def Process(prediction, threshold):
@@ -24,11 +96,54 @@ def Process(prediction, threshold):
 
     """
     prediction = sigmoid(prediction)
-    #prediction[0,1,:,:] = FilterBackground(prediction[0,1,:,:], threshold)
+    # prediction[0,1,:,:] = FilterBackground(prediction[0,1,:,:], threshold)
     prediction = FilterContour(prediction, threshold)
     
     return prediction
 
+def AddInterpolatedPoints(orig_contours):
+    """This makes sure that each slice of contours has at least 30 points
+    Args: 
+        contours (list): the contour list for a single patient
+    """
+    contours = copy.deepcopy(orig_contours)
+    #Now add in sufficient number of points 
+    for contour_idx in range(len(contours)): 
+        contour = contours[contour_idx]
+        numPointsOrig = len(contour)
+        numPoints = len(contour)
+        if numPoints > 40:
+            continue
+        if numPoints < 3:
+            contours[contour_idx] = []
+            continue
+
+
+        pointIncreaseFactor = 1
+        while numPoints < 40:  
+            numPoints = numPoints + numPointsOrig
+            pointIncreaseFactor = pointIncreaseFactor + 1      
+        increasedContour = []
+        for point_idx in range(len(contour)-1):    
+            increasedContour.append(contour[point_idx].copy())
+            for extraPointNum in range(pointIncreaseFactor):
+                scaleFactor = extraPointNum / (pointIncreaseFactor + 1)
+                newX = (contour[point_idx+1][0] - contour[point_idx][0]) * scaleFactor + contour[point_idx][0]
+                newY = (contour[point_idx+1][1] - contour[point_idx][1]) * scaleFactor + contour[point_idx][1]
+                z = contour[point_idx][2]
+                newPoint = [newX, newY, z]
+                increasedContour.append(newPoint)
+        #Now do it for the last point connected to the first
+        for extraPointNum in range(pointIncreaseFactor):
+            scaleFactor = extraPointNum / (pointIncreaseFactor + 1)
+            newX = (contour[0][0] - contour[-1][0]) * scaleFactor + contour[-1][0]
+            newY = (contour[0][1] - contour[-1][1]) * scaleFactor + contour[-1][1]
+            z = contour[-1][2]
+            newPoint = [newX, newY, z]
+            increasedContour.append(newPoint)        
+        contours[contour_idx] = increasedContour
+
+    return contours 
 
 def sigmoid(z):
     """Performs a sigmoid function on z. 
@@ -56,20 +171,20 @@ def FilterContour(image, threshold):
         filteredImage (2D numpy array): the binary mask
 
     """
-
-    xLen, yLen = image.shape
-    #print(f"Contours: max pixel: {np.amax(image)}, min pixel: {np.amin(image)}")
-    #return image #NormalizeImage(sigmoid(image))
+    return np.where(image > threshold, 1, 0)
+    # xLen, yLen = image.shape
+    # #print(f"Contours: max pixel: {np.amax(image)}, min pixel: {np.amin(image)}")
+    # #return image #NormalizeImage(sigmoid(image))
     
-    # image = (image > -2) #* image * (1 - (image < -5))
-    # return image
-    #image = NormalizeImage(image)
-    filteredImage = np.zeros((xLen, yLen))
-    for x in range(xLen):
-        for y in range(yLen):
-            if (image[x,y] > threshold):
-                filteredImage[x,y] = 1
-    return filteredImage   
+    # # image = (image > -2) #* image * (1 - (image < -5))
+    # # return image
+    # #image = NormalizeImage(image)
+    # filteredImage = np.zeros((xLen, yLen))
+    # for x in range(xLen):
+    #     for y in range(yLen):
+    #         if (image[x,y] > threshold):
+    #             filteredImage[x,y] = 1
+    # return filteredImage   
 
 def FilterBackground(image, threshold):
     """Creates a binary mask of the background of the image. Pixels below the 
@@ -139,8 +254,8 @@ def MaskToContour(image):
     
     #forOpenCV's canny edge detection, define a maximum and minimum threshold value
     image = image.astype(np.uint8)
-    edges = cv.Canny(image, 0,0.9)
-    contours, hierarchy = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    edges = cv.Canny(image, 0,0.7)
+    contours, hierarchy = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
     #sometimes can return more than one contour list, so append these.
     if len(contours) == 0:
         return edges, contours
@@ -174,7 +289,7 @@ def AddZToContours(contours, zValues):
         for point_idx in range(len(contours[layer])):
             contours[layer][point_idx] = [contours[layer][point_idx][0],contours[layer][point_idx][1],int(zValues[layer])]
             contours[layer][point_idx] = [contours[layer][point_idx][0],contours[layer][point_idx][1],int(zValues[layer])]
-        return contours
+    return contours
 
 class ContourPredictionError(Exception):
     """Exception raised if there are no contour points in a contour. 
@@ -259,19 +374,19 @@ def FixContours(orig_contours):
         else:
             i+=1    
     
-    contourSlices = []
-    idx = 0
-    while idx < len(contours):
-        if len(contours[idx]) > 0:
-            contourSlices.append(idx)
-        idx+=1  
-    contourSlices.sort()
-    contourSlices = FilterIslands(contourSlices)
-    for index in range(len(contours)):
-        if index not in contourSlices:
-            contours[index] = [] 
-     #also, if there is 3 or less points on a plane with a slice in either direction with more than 8 and less than 3 slices away, interpolate
-    i = 1
+    # contourSlices = []
+    # idx = 0
+    # while idx < len(contours):
+    #     if len(contours[idx]) > 0:
+    #         contourSlices.append(idx)
+    #     idx+=1  
+    # contourSlices.sort()
+    # contourSlices = FilterIslands(contourSlices)
+    # for index in range(len(contours)):
+    #     if index not in contourSlices:
+    #         contours[index] = [] 
+    #  #also, if there is 3 or less points on a plane with a slice in either direction with more than 8 and less than 3 slices away, interpolate
+    # i = 1
     while i < len(contourSlices)-1:
         if len(contours[contourSlices[i]]) <= 4 and len(contours[contourSlices[i]]) > 0:
             dist = 0 #distance to next slice on top with more than 8 points (if left at 0, just leave)
@@ -445,7 +560,7 @@ def Export_To_ONNX(organ):
         else: 
             print(e)
             os._exit(0)    
-    model.eval()
+    #model.eval()
 
     #Now need a dummy image to predict with to save the weights
     x = np.zeros((512,512))
@@ -636,6 +751,8 @@ def UnreasonableArea(contours, organ , path):
         pointsList = GetPointsAtZValue(contours, zValue)
       
         points = np.array(pointsList)
+        if len(points) == 0:
+            continue
 
         #try to create the hull. If there are too few points that are too close together, add to the unreasonable area list
         try: 
@@ -649,6 +766,7 @@ def UnreasonableArea(contours, organ , path):
             #if the area is above the max area or below the min area, add the z value to the unreasonable area list
             for element in percentAreaStats:
                 if percent == element[0]:
+                    #if area < element[3]:
                     if area > element[2] or area < element[3]:
                         unreasonableArea.append(round(zValue,2))
                     break

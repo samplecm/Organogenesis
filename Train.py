@@ -20,8 +20,9 @@ import Test
 from Dataset import CTDataset
 import albumentations as A 
 import subprocess
+from PostProcessing import ThresholdRescaler
 
-def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=False, preSorted=False, dataAugmentation=False):
+def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=False, preSorted=False, dataAugmentation=True):
     """Trains a model for predicting contours on a given organ. Saves the model 
        and loss history after each epoch. Stops training after a given number of
        epochs or when the validation loss has decreased by less than 0.001 for 
@@ -209,7 +210,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
             
         #check if the change in validation loss was < 0.001 for 4 epochs
         stopCount = 0   
-        if len(epochLossHistory) > 4:
+        if len(epochLossHistory) > 5:
             for i in range(1,5):
                 changeEpochLoss = epochLossHistory[len(epochLossHistory)-i] - epochLossHistory[len(epochLossHistory)-1-i]
                 if changeEpochLoss > 0 or changeEpochLoss < -0.001:
@@ -217,7 +218,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
                 else: 
                     stopCount += 1
 
-        #exit the program if the change in validation loss was < 0.001 for at least 4 epochs 
+        #exit the program if the change in validation loss was < 0.001 for at least 5 epochs 
         if stopCount == 4: 
             os._exit(0)
 
