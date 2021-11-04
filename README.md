@@ -49,9 +49,9 @@ For training, a patient’s CT set consisting of DICOM files for each individual
    </td>
    <td>UNet
    </td>
-   <td>0.22
+   <td>0.05
    </td>
-   <td>0.60
+   <td>0.83
    </td>
   </tr>
   <tr>
