@@ -147,7 +147,7 @@ def TestPlot(organ, path, threshold, modelType):
         y = y.numpy()
         # prediction = prediction[0,0,:,:]
         # print(np.amax(prediction))
-        prediction = PostProcessing.Process(prediction[0,0,:,:], threshold)
+        prediction = PostProcessing.Process(prediction[0,0,:,:], threshold, modelType, organ)
         
 
         maskOnImage = MaskOnImage(x[0,0,:,:], prediction) #this puts the mask ontop of the CT image
@@ -283,7 +283,7 @@ def NormalizeImage(image):
     amin = np.amin(image)
     return (image - amin) / ptp    
 
-def BestThreshold(organ, path, modelType, testSize=400):
+def BestThreshold(organ, path, modelType, testSize=500):
     """Determines the best threshold for predicting contours based on the 
        F score. Displays graphs of the accuracy, false positives, false
        negatives, and F score vs threshold. Also saves these stats to the
@@ -331,7 +331,7 @@ def BestThreshold(organ, path, modelType, testSize=400):
     falseNeg = []
     fScores = []
 
-    thresholds = np.linspace(0.05, 0.5, 15)
+    thresholds = np.linspace(0.05, 0.95, 40)
     
     for thres in thresholds:
         print("\nChecking Threshold: %0.3f"%(thres))

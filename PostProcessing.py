@@ -17,10 +17,11 @@ import Test
 import DicomParsing
 from scipy.spatial import ConvexHull
 import copy
+import statistics
 
 
 def ThresholdRescaler(organ, modelType, path):
-    #This function goes through the validation set for a specific model and rescales data so that the average prediction value for within a training mask is
+    #This function goes through the validation set for a specific model and rescales data so that the median prediction value for within a training mask is
     #0 (before the sigmoid or other processing).
     #In other words, it implements an intercept to go along with predictions to get a more stable threshold.
     if path==None: #if a path to data was not supplied, assume that patient data has been placed in the Patient_Files folder in the current directory. 
@@ -47,7 +48,6 @@ def ThresholdRescaler(organ, modelType, path):
         if numCompleted % 10 == 0:
             print("Finished " + str(numCompleted) + "/" + str(numFiles))
         numCompleted = numCompleted + 1
-        #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
         data = pickle.load(open(os.path.join(validationPath, image), 'rb'))
         # if np.amax(data[0][1,:,:] != 0): #if there is no mask on this image         
         #     continue
@@ -62,31 +62,34 @@ def ThresholdRescaler(organ, modelType, path):
         #need to reshape 
         x = torch.reshape(x, (1,1,xLen,yLen)).float()
         prediction = (model(x)).cpu().detach().numpy()
-        print(np.amax(prediction[0,0,:,:]))
-        plt.imshow(data[0][0,:,:])
-        #plt.imshow(prediction[0,0,:,:])
-        plt.show()
+        #print(np.amax(prediction[0,0,:,:]))
+        # plt.imshow(data[0][0,:,:])
+        # #plt.imshow(prediction[0,0,:,:])
+        # plt.show()
         #filter out any pixels that aren't in the mask
         maskPixels = y * prediction[0,0,:,:]
         nonZeroVals = maskPixels[np.nonzero(maskPixels)]
         for val in nonZeroVals:
             maskPredictions.append(val)
         
-    averageVal = np.average(maskPredictions)
+    medianVal = np.median(maskPredictions)
+    std = np.std(maskPredictions)
 
-    #Now the intercept is the difference between the 0 and the averageVal.
-    intercept = - averageVal  
+    #Now the intercept is the difference between the 0 and the statistic value.
+    intercept = - medianVal  + std/2
     print("Calculated intercept for model to be " + str(intercept))
-    saveFileName = organ + "_" + modelType + "ScaleFactor.txt"  
+    saveFileName = modelType.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
     with open(os.path.join(path, "Models/ScalingFactors", saveFileName ), 'wb') as pick:
         pickle.dump(intercept, pick)    
+    print("Finished.")    
+    return intercept
 
 
 
 
 
 
-def Process(prediction, threshold):
+def Process(prediction, threshold, modelType, organ):
     """Performs a sigmoid and filters the prediction to a given threshold.
 
     Args:
@@ -95,8 +98,21 @@ def Process(prediction, threshold):
             an organ (assigned a 1) or not (assigned a 0)
 
     """
+    
+    #first apply the rescaling intercept
+    saveFileName = modelType.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
+    try:
+        with open(os.path.join(os.getcwd(), "Models/ScalingFactors", saveFileName ), 'rb') as fp:
+            intercept = pickle.load(fp)
+    except: 
+        intercept = ThresholdRescaler(organ, modelType, path=None)
+        with open(os.path.join(os.getcwd(), "Models/ScalingFactors", saveFileName ), 'wb') as fp:
+            pickle.dump(intercept, fp)
+
+
+    prediction += intercept    
     prediction = sigmoid(prediction)
-    # prediction[0,1,:,:] = FilterBackground(prediction[0,1,:,:], threshold)
+    
     prediction = FilterContour(prediction, threshold)
     
     return prediction
@@ -172,19 +188,6 @@ def FilterContour(image, threshold):
 
     """
     return np.where(image > threshold, 1, 0)
-    # xLen, yLen = image.shape
-    # #print(f"Contours: max pixel: {np.amax(image)}, min pixel: {np.amin(image)}")
-    # #return image #NormalizeImage(sigmoid(image))
-    
-    # # image = (image > -2) #* image * (1 - (image < -5))
-    # # return image
-    # #image = NormalizeImage(image)
-    # filteredImage = np.zeros((xLen, yLen))
-    # for x in range(xLen):
-    #     for y in range(yLen):
-    #         if (image[x,y] > threshold):
-    #             filteredImage[x,y] = 1
-    # return filteredImage   
 
 def FilterBackground(image, threshold):
     """Creates a binary mask of the background of the image. Pixels below the 
@@ -258,15 +261,15 @@ def MaskToContour(image):
     contours, hierarchy = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
     #sometimes can return more than one contour list, so append these.
     if len(contours) == 0:
-        return edges, contours
+        return contours
     elif not isinstance(contours[0], list):   
-        return edges, contours
+        return contours
     else:    
-        combinedContours = contours[0]
+        combinedContours = contours[0] #now add points for all different contours which may exist
         for contour_idx in range(1, len(contours)):
             for point in contours[contour_idx]:
                 combinedContours.append(point)
-        return edges,  combinedContours        
+        return combinedContours        
 
 def AddZToContours(contours, zValues):
     """Adds the z value to each point in contours as it only 
@@ -339,16 +342,6 @@ def FixContours(orig_contours):
             for point in plane[0]:
                 planePoints.append(point[0].tolist())
         contours.append(planePoints)    
-    # print(orig_contours)
-    # print(len(orig_contours))
-    # print(len(orig_contours[25]))
-    # print(orig_contours[25])
-    # print(orig_contours[25][0][0])
-    # print(orig_contours[25][0][0][0][0])
-    # print(orig_contours)
-    # print(len(contours))
-    # print(len(contours[30]))
-    # print(contours[30][0][0])
 
     #take in a list of all CT images, and check for slices which are false negatives. 
     
@@ -356,53 +349,51 @@ def FixContours(orig_contours):
     contourSlices = []
     idx = 0
     while idx < len(contours):
+        contour = contours[idx]
         if len(contours[idx]) > 0:
             contourSlices.append(idx)
         idx+=1    
 
     contourSlices.sort()
     contourSlices = FilterIslands(contourSlices)
-    i = 0
-    while i < len(contourSlices)-1:
-        nextSlice_dist = contourSlices[i+1]-contourSlices[i]
-        if nextSlice_dist > 1:
-            try:
-                contourSlices.insert(i+1, contourSlices[i] + 1)
-                contours[contourSlices[i+1]] =  InterpolateContour(contours[i], contours[i+1], nextSlice_dist)
-            except:
-                pass    
-        else:
-            i+=1    
+    # i = 0
+    # while i < len(contourSlices)-1:
+    #     nextSlice_dist = contourSlices[i+1]-contourSlices[i]
+    #     if nextSlice_dist > 1:
+    #         try:
+    #             contours[contourSlices[i]+1] =  InterpolateContour(contours[contourSlices[i]], contours[contourSlices[i+1]], nextSlice_dist)
+    #             contourSlices.insert(i+1, contourSlices[i] + 1)
+    #         except:
+    #             pass    
+    #     else:
+    #         i+=1    
     
-    # contourSlices = []
-    # idx = 0
-    # while idx < len(contours):
-    #     if len(contours[idx]) > 0:
-    #         contourSlices.append(idx)
-    #     idx+=1  
-    # contourSlices.sort()
-    # contourSlices = FilterIslands(contourSlices)
-    # for index in range(len(contours)):
-    #     if index not in contourSlices:
-    #         contours[index] = [] 
+    contours = ValidateSlices(contours)
     #  #also, if there is 3 or less points on a plane with a slice in either direction with more than 8 and less than 3 slices away, interpolate
-    # i = 1
-    while i < len(contourSlices)-1:
-        if len(contours[contourSlices[i]]) <= 4 and len(contours[contourSlices[i]]) > 0:
-            dist = 0 #distance to next slice on top with more than 8 points (if left at 0, just leave)
-            try:
-                if len(contours[contourSlices[i+1]])>8:
-                    dist = 1
-                elif len(contours[contourSlices[i+2]])>8:
-                    dist = 2
-                elif len(contours[contourSlices[i+3]])>8:
-                    dist = 3
-            except:
-                pass     
-            #make sure the slice below has more points, or else no point
-            if dist != 0 and len(contours[contourSlices[i-1]])>len(contours[contourSlices[i]]):
-                contours[contourSlices[i]] = InterpolateContour(contours[contourSlices[i-1]], contours[contourSlices[i + dist]], dist)
-        i+=1
+    
+    # i = 0
+    # while i < len(contourSlices)-1:
+    #     if len(contours[contourSlices[i]]) <= 4:
+    #         dist = 0 #distance to next slice on top with more than 8 points (if left at 0, just leave)
+    #         try:
+    #             if len(contours[contourSlices[i+1]])>8:
+    #                 dist = 1
+    #             elif len(contours[contourSlices[i+2]])>8:
+    #                 dist = 2
+    #             elif len(contours[contourSlices[i+3]])>8:
+    #                 dist = 3
+    #         except:
+    #             pass     
+    #         #make sure the slice below has more points, or else no point
+    #         try:
+    #             if dist != 0 and len(contours[contourSlices[i-1]])>8:
+    #                 contours[contourSlices[i]] = InterpolateContour(contours[contourSlices[i-1]], contours[contourSlices[i + dist]], dist+1)
+    #             elif dist != 0 and len(contours[contourSlices[i-2]])>8:
+    #                 contours[contourSlices[i]] = InterpolateContour(contours[contourSlices[i-2]], contours[contourSlices[i + dist]], dist+2)   
+    #         except:
+    #             print("Error interpolating in FixContours function.")
+    #             exit()         
+    #     i+=1
         
 
         
@@ -410,7 +401,7 @@ def FixContours(orig_contours):
     return contours
     
 
-def InterpolateContour(contours1, contours2, distance):
+def InterpolateContour(contour1, contour2, totalDistance, dist=1):
     """Creates a linearly interpolated contour slice between contours1 and contours2. 
 
     Args:
@@ -418,16 +409,24 @@ def InterpolateContour(contours1, contours2, distance):
             A list of [x,y] coordinates
         contours2 (list): the second slice to be interpolated with
             A list of [x,y] coordinates
-        distance (int): the z distance between contours1 and contours2
+        distance (int): the difference in slice indices between contours1 and contours2
 
     Returns:
         newContour (list): the interpolated slice. A list of [x,y] coordinates
     """
+    #want to interpolate from the contour with the greatest area (approximate as one with most points)
+    if len(contour2) > len(contour1):
+        from_contour = contour2
+        to_contour = contour1
+        dist = totalDistance-dist
+    else:
+        from_contour = contour1
+        to_contour = contour2    
 
     newContour = []
-    for point in contours1:
-        point2 = ClosestPoint(point, contours2) #closest point in xy plane in contours2 list
-        interpolatedPoint = InterpolatePoint(point, point2, totalDistance = distance) #linear interp between point1, point2
+    for point in from_contour:
+        point2 = ClosestPoint(point, to_contour) #closest point in xy plane in contours2 list
+        interpolatedPoint = InterpolatePoint(point, point2, totalDistance, distance=dist) #linear interp between point1, point2
         newContour.append(interpolatedPoint)
     return newContour
     #for idx_1 in range(len(contours1)):
@@ -461,7 +460,7 @@ def ClosestPoint(point, contours):
             minDist = diff
     return closestPoint   
 
-def InterpolatePoint(point1, point2, totalDistance, distance = 1):
+def InterpolatePoint(point1, point2, totalDistance, distance=1):
     """Perfoms linear interpolation between point1 and point2.
 
     Args:
@@ -490,6 +489,81 @@ def InterpolatePoint(point1, point2, totalDistance, distance = 1):
     y = y1 + dy_dz * float(distance)
 
     return [x,y]
+
+def ValidateSlices(contours):
+    """Checks the area of contour slices, and interpolates when abnormally small slices are surrounded by two larger areas,
+
+    Args:
+      contours (list): a list of lists. Each item is a list 
+            of the predicted contour points (x, y, and z values) 
+            at a specific z value
+
+    """
+    areas = [] #list for all areas for slices
+    
+    for slice in contours:
+        areas.append(Area_of_Slice(slice))  
+    areas_end = areas[338:len(areas)-1]  
+    median_area = statistics.median(filter(lambda area: area > 0, areas))
+    cutoff_area = 0.05 * median_area
+    #first look for slices with <5% median area which have one below and on top which are greater than 0 
+    slice_below=False
+    last_good_slice = None #keep track of index of last good slice   
+    
+    for i, slice in enumerate(contours):
+        area = areas[i]
+        if area > cutoff_area:
+            slice_below=True
+            last_good_slice=i
+
+        elif slice_below==True: #inadequate area
+            next_good_slice = None #look for next slice with area > 5%
+            for j in range(i, min(i+4, len(contours))):
+                if areas[j] > cutoff_area:
+                    next_good_slice = j
+                    break
+            if next_good_slice != None:
+                slices_separation = next_good_slice - last_good_slice
+                new_contour = InterpolateContour(contours[last_good_slice], contours[next_good_slice], slices_separation, dist=i-last_good_slice)
+                new_area = Area_of_Slice(new_contour)
+                contours[i] = new_contour
+                areas[i] = new_area
+                areas_end = areas[338:len(areas)-1]  
+                #last_good_slice = i
+            else:
+                #if can't interpolate to a good slice, delete contour
+                contours[i] = []   
+        else:
+            contours[i] = []         
+
+    #now do another loop through, and if any given slice is less than 30% of area directly on top and below it, interpolate.
+    for i in range(1, len(contours)-1):
+        area = areas[i]
+        if area != 0: 
+            if areas[i-1] > area / 0.3 and areas[i+1] > area / 0.3:
+                new_contour = InterpolateContour(contours[i-1], contours[i+1], 2, dist=1)
+                contours[i] = new_contour
+            elif areas[i-1] * 1.5 < area  and areas[i+1] * 1.5 < area:
+                new_contour = InterpolateContour(contours[i-1], contours[i+1], 2, dist=1)
+                contours[i] = new_contour    
+                
+    return contours            
+
+
+
+            
+
+
+
+    print("")
+
+def Area_of_Slice(slice):
+    area = 0
+    j = len(slice)-1
+    for i in range(j):
+        area += (slice[j][0]+slice[i][0])*(slice[j][1] - slice[i][1])
+        j = i
+    return abs(area) / 2   
 
 
 def FilterIslands(slices):

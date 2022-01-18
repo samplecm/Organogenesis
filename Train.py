@@ -124,7 +124,7 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
         A.OneOf([A.Perspective(scale=(0.05,0.1), keep_size = True, pad_mode = 0, fit_output = True, p=0.5), A.ElasticTransform(p=0.5, alpha=16, sigma=512*0.05, alpha_affine=512*0.03),
         #A.GaussNoise(var_limit = 0.05, p = 0.5)
         ], p =0.5),
-        A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(5, p=0.5)], p=0.5)
+        #A.OneOf([A.VerticalFlip(p=0.5), A.HorizontalFlip(p=0.5), A.Rotate(5, p=0.5)], p=0.5)
         ])
     else:
         transform = None
@@ -203,8 +203,8 @@ def Train(organ,numEpochs,lr, path, processData, loadModel, modelType, sortData=
                 #reshape to have batch dimension in front
        
        #save the losses
-        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + modelType.lower() + "_" + "trainLossHistory" + ".txt")), "wb") as fp:
-            pickle.dump(trainLossHistory, fp)         
+        with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + modelType.lower() + "_" + "epochs" + ".txt")), "wb") as fp:
+            pickle.dump(epoch, fp)   
         with open(os.path.join(pathlib.Path(__file__).parent.absolute(), str("Loss History/" + organ + "/" + modelType.lower() + "_" + "epochLossHistory" + ".txt")), "wb") as fp:
             pickle.dump(epochLossHistory, fp)  
             
