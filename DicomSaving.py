@@ -9,6 +9,7 @@ import ds_helper
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.sequence import Sequence
 import pathlib
+import random
 
 def SaveToDICOM(patientName, organList, path, contoursList):
     """Uses a pre trained model to predict contours for a given organ. Saves 
@@ -32,22 +33,33 @@ def SaveToDICOM(patientName, organList, path, contoursList):
     #get the list of patient folders
     patientPath = os.path.join(path, patientPath)
     patientFolder = sorted(os.listdir(patientPath))
-
+    if len(patientFolder) == 1 and os.path.isdir(os.path.join(patientPath, patientFolder[0])):
+        patientPath = os.path.join(patientPath, patientFolder[0])
+        patientFolder = os.listdir(patientPath)
     structFile = None
 
     for fileName in patientFolder:
-        if "STRUCT" in fileName:
-            structFile = fileName  
+        try:
+            filePath = os.path.join(patientPath, fileName)
+            patientData = pydicom.dcmread(filePath)
+        except:
+            continue
+        modality = patientData[0x0008,0x0060].value 
+        if "STRUCT" in modality:
+            structFile = fileName
 
     #create a new struct file if there wasn't one provided
-    if structFile is None:
-        rtStruct = RTStructBuilder.create_new(dicom_series_path = patientPath)
-        newStructFile = patientName + "STRUCT"
-    else:
-        structPath = os.path.join(patientPath, structFile)
-        #load existing RT Struct
-        rtStruct = RTStructBuilder.create_from(dicom_series_path = patientPath, rt_struct_path = structPath)
-        newStructFile = structFile.split(".dcm")[0] + "_1"
+    # if structFile is None:
+    rtStruct = RTStructBuilder.create_new(dicom_series_path = patientPath)
+    rand_num = random.randrange(100000,999999)
+    newStructFile = "ORG_STRUCT" + str(rand_num)
+    # else:
+    #     structPath = os.path.join(patientPath, structFile)
+    #     #load existing RT Struct
+    #     rtStruct = RTStructBuilder.create_from(dicom_series_path = patientPath, rt_struct_path = structPath)
+    #     if "ORG" not in structFile:
+    #         newStructFile =  "ORG_" + structFile.split(".dcm")[0] + "_1"
+    #     else: newStructFile = structFile.split(".dcm")[0] + "_1"    
 
     #create a list of colors for the contours 
     colorList= [

@@ -94,6 +94,57 @@ def Area_of_Slice(slice):
 
     return area
 
+def PlotTrainingMasks(organList, path): 
+    #currently works for tubarial glands
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = os.getcwd()  
+    
+    dataPaths = []
+    fileLists = []
+    for organ in organList: 
+        dataPaths.append(os.path.join(path, str('Processed_Data/' + organ + "_Val/")))
+        fileLists.append(os.listdir(dataPaths[-1]))
+    
+    for file in fileLists[0]:    
+        maskImage = None    
+        masks = None
+        for dataPath in dataPaths:
+            data = pickle.load(open(os.path.join(dataPath, file), 'rb'))
+            if np.amax(data[0][1,:,:]) == 0:
+                break
+            x = data[0][0, :, :]
+            y = data[0][1, :,:]    
+            if maskImage is None:       
+                maskImage = MaskOnImage(x[:,:], y[:,:])
+                masks = y
+
+            else: 
+                maskImage = MaskOnImage(maskImage, y[:,:])    
+                masks = MaskOnImage(masks, y[:,:])  
+            
+        if np.amax(data[0][1,:,:]) == 0:
+            continue
+        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
+        #predictedContour = PostProcessing.MaskToContour(prediction[0,0,:,:])
+        #contour = PostProcessing.MaskToContourImage(y[0,0,:,:])
+        axs[0,0].imshow(x[:,:], cmap='gray')
+        axs[0,0].set_title("Original Image")
+        #axs[0,1].hist(predictionRaw[0,0,:,:], bins=5)
+        axs[0,1].imshow(maskImage[:,:] , cmap='gray')
+        axs[0,1].set_title("Mask on Image")
+        axs[1,0].imshow(masks[:,:], cmap='gray')
+        axs[1,0].set_title("Original Mask")
+        print(file)
+
+        
+        # axs[2,0].imshow(y[0,1, :,:], cmap = "gray")
+        # axs[2,0].set_title("Original Background")
+        # axs[2,1].imshow(prediction[0,1, :,:], cmap = "gray")
+        # axs[2,1].set_title("Predicted Background")
+        plt.show()
+
+
+
 
 def TestPlot(organ, path, threshold, modelType):
     """Plots 2D CTs with both manually drawn and predicted masks 
@@ -116,7 +167,7 @@ def TestPlot(organ, path, threshold, modelType):
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
+    model.load_state_dict(torch.load(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)    
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(path, dataPath)
@@ -283,7 +334,7 @@ def NormalizeImage(image):
     amin = np.amin(image)
     return (image - amin) / ptp    
 
-def BestThreshold(organ, path, modelType, testSize=500):
+def BestThreshold(organ, path, modelType, test_size=1000):
     """Determines the best threshold for predicting contours based on the 
        F score. Displays graphs of the accuracy, false positives, false
        negatives, and F score vs threshold. Also saves these stats to the
@@ -311,136 +362,61 @@ def BestThreshold(organ, path, modelType, testSize=500):
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
+    model.load_state_dict(torch.load(os.path.join(path, "Models/", organ,"Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)     
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(path, dataPath)
     dataFiles = os.listdir(dataFolder)
 
-    #also get the bools to find if masks are on image plane
-    boolPath = 'Processed_Data/' + organ + " bools"
-    boolFolder = os.path.join(path, boolPath)
-    boolFiles = os.listdir(boolFolder)
 
     #shuffle the order (boolFiles is in same order)
     filesRange = list(range(len(dataFiles)))
     random.shuffle(filesRange)
 
     accuracies = [] #make a list of average accuracies calculated using different thresholds
-    falsePos = []
-    falseNeg = []
-    fScores = []
+    recalls = []
+    precisions = []
+    f_scores = []
 
-    thresholds = np.linspace(0.05, 0.95, 40)
+    thresholds = np.linspace(0.3, 0.7, 15)
     
     for thres in thresholds:
         print("\nChecking Threshold: %0.3f"%(thres))
-        totalTPs = 0
-        totalFPs = 0
-        totalFNs = 0
-        d = 0
-        #get the accuracy and F score for the current threshold value
-        thresAccuracy = []
-        thresFScore = []
-        testSize = min(testSize, len(filesRange))
-        while d < testSize:
-            numStack = min(testSize, len(filesRange) - 1 - d)
-            p = 0
-            concatList = []
-            while p < numStack:
-                imagePath = dataFiles[d]
-                image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
-                image = image.reshape((2,1,image.shape[1], image.shape[2]))
-                concatList.append(image)
-                p = p + 1
-                d= d + 1
-            if len(concatList) == 0:
-                break    
-            data = np.concatenate(concatList, axis=1)    #data has 4 dimensions, first is the type (image, contour, background), then slice, and then the pixels.
-            print('Loaded ' + str(numStack) + ' images. Proceeding...') 
-            data = torch.from_numpy(data)
-            numSlices = data.shape[1]
-            slices = list(range(numSlices))
-            random.shuffle(slices)
-
-            for sliceNum in slices:
-                x = data[0, sliceNum, :, :]
-                y = data[1, sliceNum, :, :]
-                x = x.to(device)
-                
-                xLen, yLen = x.shape
-                #need to reshape 
-                x = torch.reshape(x, (1,1,xLen,yLen)).float()
-                y = torch.reshape(y, (xLen,yLen)).float()   
-                predictionRaw = (model(x)).cpu().detach().numpy()
-                prediction = PostProcessing.Process(predictionRaw[0,0,:,:],thres) 
-                prediction = np.reshape(prediction, (xLen, yLen))
-                #now judge accuracy: 
-               
-                thresPrediction = (prediction > thres)
-                imageAccuracy = np.sum(thresPrediction == y.numpy())
-                imageFP = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 1))
-                imageTP = np.sum(np.logical_and(thresPrediction == y.numpy(), thresPrediction == 1))
-                imageTN = np.sum(np.logical_and(thresPrediction == y.numpy(), thresPrediction == 0)) 
-                imageFN = np.sum(np.logical_and(thresPrediction != y.numpy(), thresPrediction == 0))   
-                totalFPs = totalFPs + imageTP
-                totalFNs = totalFNs + imageFN 
-                totalTPs = totalTPs + imageTP 
-                # imageRecall = imageTP/(imageTP+imageFN)
-                # imagePrecision = imageTP/(imageTP+imageFP)
-                # if imageRecall != 0 and imagePrecision != 0 and math.isnan(imageRecall) == False and math.isnan(imagePrecision) == False:
-                #     imageFScore = 2.0/(imageRecall**(-1) + imagePrecision**(-1))
-                #     thresFScore.append(imageFScore)
-                imageAccuracy = imageAccuracy * 100/float(prediction.size) 
-                imageFN = imageFN * 100 / float(prediction.size)
-                imageFP = imageFP * 100 / float(prediction.size)
-                thresAccuracy.append(imageAccuracy)
-
-        accuracies.append(sum(thresAccuracy) / len(thresAccuracy))
+        files_max = test_size
+        F_Score, recall, precision, accuracy = FScore(organ, path,thres, modelType,test_size=files_max)
+        f_scores.append(F_Score)
+        recalls.append(recall)
+        precisions.append(precision)
+        accuracies.append(accuracy)
         
-        recall = totalTPs/(totalTPs + totalFNs)
-        precision = totalTPs / (totalTPs + totalFPs)
-        if recall > 0 and precision > 0:
-            fScore = 2/(recall**(-1) + precision ** (-1))
-        else: 
-            fScore = 0    
-        fScores.append(fScore)
-        falseNeg.append(totalFNs)
-        falsePos.append(totalFPs)
     #Now need to determine what the best threshold to use is. Also plot the accuracy, FP, FN, F score:
-    fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 10))
+    # fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 10))
 
-    axs[0].scatter(thresholds, accuracies)
-    axs[0].plot(thresholds, accuracies)
-    axs[0].set_title("Accuracy vs Threshold")
-    axs[1].scatter(thresholds, falsePos)
-    axs[1].plot(thresholds, falsePos)
-    axs[1].set_title("False Positives vs Threshold")
-    axs[2].scatter(thresholds, falseNeg)
-    axs[2].plot(thresholds, falseNeg)
-    axs[2].set_title("False Negatives vs Threshold")
-    axs[3].scatter(thresholds, fScores)
-    axs[3].plot(thresholds, fScores)
-    axs[3].set_title("F Score vs Threshold")
+    # axs[0].scatter(thresholds, accuracies)
+    # axs[0].plot(thresholds, accuracies)
+    # axs[0].set_title("Accuracy vs Threshold")
+    # axs[1].scatter(thresholds, recalls)
+    # axs[1].plot(thresholds, recalls)
+    # axs[1].set_title("Recall vs Threshold")
+    # axs[2].scatter(thresholds, precisions)
+    # axs[2].plot(thresholds, precisions)
+    # axs[2].set_title("Precision vs Threshold")
+    # axs[3].scatter(thresholds, f_scores)
+    # axs[3].plot(thresholds, f_scores)
+    # axs[3].set_title("F Score vs Threshold")
 
-    plt.show()    
+    # plt.show()    
 
     #Get maximimum F score
-    maxFScore = max(fScores) 
-    maxFScoreIndices = [i for i, j in enumerate(fScores) if j == maxFScore]
-    bestThreshold = thresholds[maxFScoreIndices[0]] 
+    best_index = f_scores.index(max(f_scores) )
+    bestThreshold = thresholds[best_index] 
+    print(f"Best threshold found: {thresholds[best_index]}")
     #save this threshold
-    thresFile = open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"),'w')
+    thresFile = open(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"),'w')
     thresFile.write(str(bestThreshold))
     thresFile.close()
-    with open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Accuracy.txt"),'wb') as fp:
-        pickle.dump(accuracies, fp)      
-    with open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_FalseNeg.txt"),'wb') as fp:
-        pickle.dump(falseNeg, fp)   
-    with open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_FalsePos.txt"),'wb') as fp:
-        pickle.dump(falsePos, fp)         
-    with open(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_FScore.txt"),'wb') as fp:
-        pickle.dump(fScores, fp)    
+   
+    print(f"best threshold: {bestThreshold}")    
     return bestThreshold
 
 
@@ -525,7 +501,7 @@ def PlotPatientContours(contours, existingContours):
     for layer_idx in range(len(existingContours)):
         if len(existingContours[layer_idx]) > 0:
             for point_idx in range(len(existingContours[layer_idx])):
-                x = existingContours[layer_idx][point_idx][0]-200
+                x = existingContours[layer_idx][point_idx][0] - 20
                 y = existingContours[layer_idx][point_idx][1]
                 z = existingContours[layer_idx][point_idx][2]
                 
@@ -539,7 +515,7 @@ def PlotPatientContours(contours, existingContours):
     pointCloud.points = o3d.utility.Vector3dVector(pointList[:,:3])
     o3d.visualization.draw_geometries([pointCloud])
 
-def FScore(organ, path, threshold, modelType):
+def FScore(organ, path, threshold, modelType, test_size=None):
     """Computes the F score, accuracy, precision, and recall for a model
        on a given organ. Uses the validation data. 
 
@@ -565,12 +541,12 @@ def FScore(organ, path, threshold, modelType):
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
+    model.load_state_dict(torch.load(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)
     #model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
     dataFolder = os.path.join(path, dataPath)
-    dataFiles = sorted(os.listdir(dataFolder))
+    data_files = sorted(os.listdir(dataFolder))
     d = 0
     print("\nCalculating Fscore Statistics for the " + modelType + " " + organ + " model")
     TP = 0
@@ -578,14 +554,17 @@ def FScore(organ, path, threshold, modelType):
     FN = 0
 
     xLen,yLen = [0,0]
-    while d < len(dataFiles):
-        numStack = min(3, len(dataFiles) - 1 - d) 
+    if type(test_size) == int:
+        num_files = min(test_size, len(data_files))
+    else:
+        num_files = len(data_files)    
+    while d < num_files:
+        numStack = min(10, num_files - 1 - d) 
         p = 0
         concatList = []
         while p < numStack:
-            imagePath = dataFiles[d]
+            imagePath = data_files[d]
             image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
-            image[0][:] = NormalizeImage(image[0][:])
             image = image.reshape((2,1,image.shape[2], image.shape[2]))
             concatList.append(image)
             p+=1
@@ -596,20 +575,18 @@ def FScore(organ, path, threshold, modelType):
         numSlices = data.shape[1]
         for sliceNum in range(numSlices):
             x = torch.from_numpy(data[0, sliceNum, :, :])
-            y = torch.from_numpy(data[1:2, sliceNum, :,:])
+            y = torch.from_numpy(data[1, sliceNum, :,:])
             x = x.to(device)
             y = y.to(device)
             xLen, yLen = x.shape
                         #need to reshape 
-            x.requires_grad = True
-            y.requires_grad = True
             x = torch.reshape(x, (1,1,xLen,yLen)).float()
             y = y.cpu().detach().numpy()
             y =np.reshape(y, (xLen, yLen))
  
             predictionRaw = (model(x)).cpu().detach().numpy()
             predictionRaw = np.reshape(predictionRaw, (xLen, yLen))
-            prediction = PostProcessing.Process(predictionRaw, threshold)
+            prediction = PostProcessing.Process(predictionRaw, threshold, modelType, organ)
             for x_idx in range(xLen):
                 for y_idx in range(yLen):
                     if prediction[x_idx,y_idx] == 1:
@@ -619,7 +596,7 @@ def FScore(organ, path, threshold, modelType):
                             FP += 1
                     elif y[x_idx,y_idx] == 1:     
                         FN += 1           
-        print("Finished " + str(d) + " out of " + str(len(dataFiles)) + " contours...")                     
+        print("Finished " + str(d) + " out of " + str(num_files) + " contours...")                     
     totalPoints = d * xLen * yLen                    
     recall = TP / (TP + FN)
     precision = TP / (TP + FP)
@@ -628,12 +605,12 @@ def FScore(organ, path, threshold, modelType):
   
     return F_Score, recall, precision, accuracy
 
-def HaussdorffDistance(organ, path, threshold, modelType):
-    """Determines the 95th percentile Haussdorff distance for a model 
+def HausdorffDistance(organ, path, threshold, modelType):
+    """Determines the 95th percentile Hausdorff distance for a model 
        with a given organ.
 
     Args:
-        organ (str): the organ to get the Haussdorff distance for
+        organ (str): the organ to get the Hausdorff distance for
         path (str): the path to the directory containing organogenesis folders 
             (Models, Processed_Data, etc.)
         threshold (float): the cutoff for deciding if a pixel is 
@@ -641,7 +618,7 @@ def HaussdorffDistance(organ, path, threshold, modelType):
         modelType (str): the type of model
 
     Returns:
-        float: 95th percentile Haussdorff distance
+        float: 95th percentile Hausdorff distance
 
     """
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
@@ -652,7 +629,7 @@ def HaussdorffDistance(organ, path, threshold, modelType):
     dataFiles = sorted(os.listdir(dataFolder))
 
     patientList = []
-    HaussdorffDistanceList = []
+    HausdorffDistanceList = []
     patientCount = 0
 
     #want to use the patients in the validation set so get the patient names
@@ -661,15 +638,14 @@ def HaussdorffDistance(organ, path, threshold, modelType):
         fileName = splitFile[1]
         for s in range(2, len(splitFile)-1):
             fileName = fileName + "_" + splitFile[s]
-        if fileName not in patientList:
-            
+        if fileName not in patientList:          
             patientList.append(fileName)
 
-    print("Calculating Haussdorff Distance for the " + modelType + " " + organ + " model...")
+    print("Calculating Hausdorff Distance for the " + modelType + " " + organ + " model...")
     if len(patientList) > 20:
         patientList = patientList[0:21]
     for patientName in patientList: 
-        predictedContourList, existingContourList, predictedContour, existingContour = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot = False)
+        predictedContour, existingContour, predictedContourList, existingContourList = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot=False)
         
         predictedContourArray = np.array(predictedContourList)
         existingContourArray = np.array(existingContourList)
@@ -679,20 +655,28 @@ def HaussdorffDistance(organ, path, threshold, modelType):
         existingContourArray = existingContourArray.reshape(int(existingContourArray.shape[0]/3), 3)
 
         #get the maximum Hausdorff distance and add to the list 
-        maxHaussdorffDistance = max(directed_hausdorff(predictedContourArray, existingContourArray)[0], directed_hausdorff(existingContourArray, predictedContourArray)[0])
-        HaussdorffDistanceList.append(maxHaussdorffDistance)
+        for i in range(predictedContourArray.shape[0]): 
+            haus1 = directed_hausdorff(np.array([predictedContourArray[i,:]]), existingContourArray)[0]
+            #haus2 = directed_hausdorff(existingContourArray, np.array([predictedContourArray[i,:]]))[0]
+            HausdorffDistanceList.append(haus1)
+        for i in range(existingContourArray.shape[0]): 
+            haus1 = directed_hausdorff(np.array([existingContourArray[i,:]]), predictedContourArray)[0]
+            #haus2 = directed_hausdorff(existingContourArray, np.array([predictedContourArray[i,:]]))[0]
+            HausdorffDistanceList.append(haus1)    
+
 
         patientCount += 1
 
         print("Finished " + str(patientCount) + " out of " + str(len(patientList)) + " patients")
 
-    #return the 95th percentile Haussdorff distance
-    return np.percentile(np.array(HaussdorffDistanceList), 95)
+    #return the 95th percentile Hausdorff distance
+    percentile_haus = np.percentile(np.array(HausdorffDistanceList), 95)
+    return percentile_haus
 
 
 def GetEvalData(organ, path, threshold, modelType):
     """Creates a text file containing the hyperparameters of the model, 
-       the F score data, and the 95th percentile Haussdorff distance.
+       the F score data, and the 95th percentile Hausdorff distance.
 
     Args:
         organ (str): the organ to get evaluation data for 
@@ -707,20 +691,24 @@ def GetEvalData(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
 
-    haussdorffDistance = HaussdorffDistance(organ, path, threshold, modelType)
-    haussdorffDistance = float(haussdorffDistance)
+    hausdorffDistance = HausdorffDistance(organ, path, threshold, modelType)
+    hausdorffDistance = float(hausdorffDistance)
 
     F_Score, recall, precision, accuracy = FScore(organ, path, threshold, modelType)
-    print("F Score:" + str(F_Score))
+    print("F Score: " + str(F_Score))
+    print("Hausdorff: " + str(hausdorffDistance))
     
 
     #create a list of the hyperarameters of the model and the evaluation data
     evalData= []
 
     #load the hyperparamaters of the model
-    with open(os.path.join(path, "Models/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
-        evalData = pickle.load(fp)
-    
+    try:
+        with open(os.path.join(path, "Models/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
+            evalData = pickle.load(fp)
+    except:
+        pass        
+        
 
 
     evalData.append(["F Score", F_Score])
@@ -728,7 +716,7 @@ def GetEvalData(organ, path, threshold, modelType):
     evalData.append(["Precision", precision])
     evalData.append(["Accuracy", accuracy])
     evalData.append(["Threshold", threshold])
-    evalData.append(["95th Percentile Haussdorff Distance", haussdorffDistance])
+    evalData.append(["95th Percentile Hausdorff Distance", hausdorffDistance])
 
     #save the hyperparamters and F score data for the model 
     with open(os.path.join(path, "Evaluation Data\EvaluationData_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "w") as fp:
@@ -737,7 +725,7 @@ def GetEvalData(organ, path, threshold, modelType):
                 fp.write(str(element)+ " ")
             fp.write('\n')
     
-    return F_Score, recall, precision, accuracy, haussdorffDistance
+    return F_Score, recall, precision, accuracy, hausdorffDistance
 
 def PercentStats(organ, path):
     """Saves lists of the area and the number of contour points at each percentage 

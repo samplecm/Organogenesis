@@ -93,44 +93,45 @@ def main():
     chooseTask_string += "\n4. Determine the evaulation data (F score and 95th percentile Haussdorff distance) for the validation set"
     chooseTask_string += "\n5. Plot predicted masks"
     chooseTask_string += "\n6. Threshold Rescaling"
-    chooseTask_string += "\n7. Get Volume Stats \n>>" 
+    chooseTask_string += "\n7. Get Volume Stats" 
+    chooseTask_string += "\n8. Plot Training Masks \n>>" 
     
     while True: #get user input
         try:
             task = int(input(chooseTask_string))
-            if (task in range(0,8)):
+            if (task in range(0,9)):
                 break
         except KeyboardInterrupt:
             quit()
         except: pass   
 
     if (task == 1):
-        Train.Train(chosenOARs[0], 15, 1e-4, path=None, processData=True, loadModel=False, modelType = "MultiResUNet", sortData=False, preSorted=False)
-        #Test.BestThreshold(chosenOARs[0],500)
-        PostProcessing.ThresholdRescaler(chosenOARs[0], modelType = "MultiResUNet", path=None)
+        # Train.Train(chosenOARs[0], 15, 1e-3, path=None, processData=False, loadModel=False, modelType = "MultiResUNet", sortData=False, preSorted=False)
+        # Test.BestThreshold(chosenOARs[0],500)
+        #Train.CrossValidate("Left Tubarial", 15, 1e-4, path=None, model_type='MultiResUNet', continue_previous=False)
+        Train.CrossValidate(chosenOARs[0], 15, 1e-4, path=None, model_type='MultiResUNet', continue_previous=False)
+         
         Test.TestPlot(chosenOARs[0], path=None, threshold=0.5, modelType = "MultiResUNet") 
 
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,"CT_170336",path = None,  thresholdList = [0.5], modelTypeList = ["multiresunet"], withReal=True, tryLoad=False, save=True) 
+        Predict.GetMultipleContours(chosenOARs,["CT_170336", "CT_170530", "CT_173347"] ,path = None,  thresholdList = [0.5], modelTypeList = ["multiresunet"], withReal=True, tryLoad=False, save=True) 
         
     elif task == 3:
-        Test.BestThreshold(chosenOARs[0], path=None, modelType = "unet")
+        Test.BestThreshold(chosenOARs[0], path=None, modelType = "multiresunet")
     elif task == 4:
-        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.5, path = None, modelType = "unet")    
+        F_Score, recall, precision, accuracy, haussdorffDistance = Test.GetEvalData(chosenOARs[0], threshold=0.62, path = None, modelType = "multiresunet")    
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:
-        #array, y = Test.GetMasks(OARs[chosenOAR], "P10", path=None, threshold=0.7, modelType = "UNet") 
-        #import numpy as np
-        #print(np.amax(y))
-        ##print(np.amax(array))
-        Test.TestPlot(chosenOARs[0], path=None, threshold=0.5, modelType = "MultiResUNet") 
+        Test.TestPlot(chosenOARs[0], path=None, threshold=0.6, modelType = "MultiResUNet") 
         #Test.PercentStats(chosenOARs[0], path = None)
     elif task == 6:
         PostProcessing.ThresholdRescaler(chosenOARs[0], modelType = "MultiResUNet", path=None)  
         Test.TestPlot(chosenOARs[0], path=None, threshold=0.5, modelType = "MultiResUNet")    
     elif task == 7:
         Test.GetTrainingVolumeStats(chosenOARs[0], path=None)    
+    elif task == 8:
+        Test.PlotTrainingMasks(chosenOARs, path=None)    
                 
 
 if __name__ == "__main__":
@@ -307,7 +308,7 @@ if __name__ == "__main__":
         preSorted = args.preSorted
         dataAugmentation = args.dataAugmentation
 
-        Train.Train(organsList[0], numEpochs, lr, dataPath, processData, loadModel, modelType, sortData, preSorted, dataAugmentation)
+        Train.Train(organsList[0], numEpochs, lr, dataPath, modelType, processData, loadModel, sortData, preSorted, dataAugmentation)
         bestThreshold = Test.BestThreshold(organsList[0], dataPath, modelType = modelType)
 
         Test.TestPlot(organsList[0], dataPath, threshold=bestThreshold, modelType = modelType)  

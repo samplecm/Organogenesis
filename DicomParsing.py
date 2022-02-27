@@ -17,7 +17,7 @@ from fastDamerauLevenshtein import damerauLevenshtein
     
 #Want to have a function that checks for a structure in patients' structure sets, and obtains the contours
 #if preSorted = True, that means that they are already sorted lists indicating whether the contour is good or bad (no need to plot) 
-def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
+def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False, cross_val=False, fold=None):
     """Processes the dicom file data and saves it. CT images, masks, and z values 
        are saved for the training and validation data. 10% of patients with good contours 
        are saved to the validation data set. CT images are saved for the testing data.
@@ -31,8 +31,27 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
             False to display contours for each patient and sort manually
         path (str): the path to the directory containing organogenesis folders 
             (Models, Processed_Data, etc.)
+        cross_val (bool) True if a cross validation is to be performed. If true, fold must be specified
+        fold (list(int)): specifies 2 values, 1: the total folds used for cross validation, and 2: the current fold being calculated    
 
     """
+    total_folds = None
+    current_fold = None
+    if cross_val==True:
+        if fold==None:
+            raise Exception("Cannot have cross_val == True if fold is unspecified")
+        if type(fold) != list:
+            raise Exception("Fold must be a list of two integers.")
+        if len(fold) != 2:
+            raise Exception("Fold must be a list of two integers.")
+        total_folds = fold[0]
+        current_fold = fold[1]    
+
+
+
+    if fold!=None:
+        if cross_val==False:
+            print("Warning: cross_val is false but a non-None fold has been specified.")       
 
     #get the list of patient folders
     patientFoldersRaw = sorted(os.listdir(filesFolder))
@@ -59,6 +78,18 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()    
+
+    #first delete processed data that is already in the organ directory, as it could interfere with the new sorting
+    train_path = os.path.join(path, 'Processed_Data', organ)
+    val_path = train_path + "_Val"
+    train_files = os.listdir(train_path)
+    val_files = os.listdir(val_path)
+    for file in train_files:
+        os.remove(os.path.join(train_path, file))
+    for file in val_files:
+        os.remove(os.path.join(val_path, file))
+
+
 
     if preSorted:
  
@@ -95,13 +126,17 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
 
     else: 
     #Loop through the patients
+        print("Beginning search for eligible training patients.")
         for p in range(len(patientFolders)):
             patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
             #get the RTSTRUCT dicom file and get patient 's CT scans: 
             structFiles = []
             for fileName in patient:
                 #get the modality: 
-                patientData = pydicom.dcmread(fileName)
+                try:
+                    patientData = pydicom.dcmread(fileName)
+                except:
+                    continue    
                 modality = patientData[0x0008,0x0060].value 
                 if "STRUCT" in modality:
                     structFiles.append(fileName)          
@@ -150,6 +185,9 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
     #     except: pass   
     #Now loop over patients, saving image data for each if they have a structure
     for p in range(len(patientFolders)):
+        if patientFolders[p] not in patientStructuresDict: #if doesn't have contour, add this CT to the test folder
+            continue
+
         patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
     
         #Now loop over patients for image data
@@ -158,7 +196,9 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
         patient_Struct = []
         for fileName in patient:
             #get the modality: 
-            patientData = pydicom.dcmread(fileName)
+            try:
+                patientData = pydicom.dcmread(fileName)
+            except: continue    
             modality = patientData[0x0008, 0x0060].value 
             
             if modality == "CT":
@@ -194,17 +234,8 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
             CTs.append( [ resizedArray, dcmread(CTFile).data_element("ImagePositionPatient").value[2]])
 
         CTs.sort(key=lambda x:x[1]) #not necessarily in order, so sort according to z-slice.
-        if patientFolders[p] not in patientStructuresDict: #if doesn't have contour, add this CT to the test folder
-            testImagePath = "Processed_Data/" + organ + "_Test/TestData_" + patientFolders[p]
-            for zSlice in range(len(CTs)):
-                sliceText = str(zSlice)
-                if zSlice < 10:
-                    sliceText = "0" + str(zSlice)
-                image = CTs[zSlice][0]
-                with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                    pickle.dump(image , fp)
-                    #saving the images
-            continue
+
+        
 
 
         roiNumber = patientStructuresDict[patientFolders[p]][1]
@@ -281,11 +312,11 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
         #Now take these lists and combine them into one 4 dimensional numpy array (1st dim image type, second slice, third and 4th are pixels)
         #Need to create path strings for the saved file. 
         trainImagePath = "Processed_Data/" + organ + "/TrainData_" + patientFolders[p] 
-        trainContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
+        #trainContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
         valImagePath = "Processed_Data/" + organ + "_Val/ValData_" + patientFolders[p]
-        valContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
-        testImagePath = "Processed_Data/" + organ + "_Test/TestData_" + patientFolders[p] 
-        testContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
+        #valContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
+        #testImagePath = "Processed_Data/" + organ + "_Test/TestData_" + patientFolders[p] 
+        #testContourBoolPath = "Processed_Data/" + organ + " bools/contourBool_" + patientFolders[p] 
         combinedData = np.zeros((2,len(CTs),xLen,yLen))
         slice_ZVals = [] #For storing the z value of CT slices
         for zSlice in range(len(CTs)):
@@ -342,42 +373,68 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False):
                 except KeyboardInterrupt:
                     quit()
                 except: pass  
+
         #always want to save the CTs and masks of the good contours if its been presorted already or sortdata is not selected.
         else: 
             save = True
 
+        if cross_val==True:
+            #need to define which files will be used for validation in current fold
+            num_patients = len(patientStructuresDict.keys())
+            vals_per_fold = int(num_patients / total_folds)
+            val_indices = range(vals_per_fold*(current_fold - 1), vals_per_fold*(current_fold))#patient folder indices (p) that will be placed in validation set
+
+
+
         for zSlice in range(len(CTs)):    
             sliceText = str(zSlice)
-            if save == True:               
+
+            if save == True:             
                 if zSlice < 10:
                     sliceText = "0" + str(zSlice)
+
                 if preSorted == True: 
+
                     if patientFolders[p] not in validationPatientsList:
                         with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                        with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
-                            pickle.dump(contourOnPlane[zSlice], fp)
+                        # with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
+                        #     pickle.dump(contourOnPlane[zSlice], fp)
                     else: 
                         with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                        with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump(contourOnPlane[zSlice], fp) 
+                        # with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                        #     pickle.dump(contourOnPlane[zSlice], fp) 
+
+                if cross_val==True:
+                    if p in val_indices:
+                        with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)  
+                    else:
+                        with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+                            pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)      
+
                 else: 
                     if 100*(len(patientStructuresDict) - p) / len(patientStructuresDict) > 10:  #separate 90% of data into training set, other into validation
                         with open(os.path.join(path, str(trainImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                        with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
-                            pickle.dump(contourOnPlane[zSlice], fp)          
+                        # with open(os.path.join(path, str(trainContourBoolPath)+ "_" + sliceText + ".txt"), "wb") as fp:
+                        #     pickle.dump(contourOnPlane[zSlice], fp)          
                     else:
                         with open(os.path.join(path, str(valImagePath + "_" + sliceText + ".txt")), "wb") as fp:
                             pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                        with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
-                            pickle.dump(contourOnPlane[zSlice], fp)     
-            else:
-                with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
-                with open(os.path.join(path, str(testContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
-                        pickle.dump(contourOnPlane[zSlice], fp)  
+                        # with open(os.path.join(path, str(valContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+                        #     pickle.dump(contourOnPlane[zSlice], fp)     
+            # else:
+            #     with open(os.path.join(path, str(testImagePath + "_" + sliceText + ".txt")), "wb") as fp:
+            #             pickle.dump([combinedData[:,zSlice,:,:], slice_ZVals[zSlice]], fp)         
+            #     with open(os.path.join(path, str(testContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
+            #  
+            #           pickle.dump(contourOnPlane[zSlice], fp)  
+    val_list = [] 
+    for idx in val_indices:
+        val_list.append(patientFolders[idx])
+    return val_list            
 
 def GetPredictionCTs(patientName, path):
     """Processes CT images for a given patient from a dicom file and saves them
@@ -405,8 +462,9 @@ def GetPredictionCTs(patientName, path):
     for fileName in patientFolder:
         #get the modality: 
         fileNameAbsolute = os.path.join(os.getcwd(),"Patient_Files", patientName, fileName)
-
-        patientData = pydicom.dcmread(fileNameAbsolute)
+        try:
+            patientData = pydicom.dcmread(fileNameAbsolute)
+        except: continue    
         modality = patientData[0x0008,0x0060].value 
         if "CT" == modality: 
             patient_CTs.append(fileNameAbsolute)
@@ -471,11 +529,17 @@ def GetDICOMContours(patientName, organ, path):
 
     structFiles = []    
     for fileName in patientFolder:
+        if "ORG_STRUCT" in fileName:
+            continue
         #get the modality: 
-        patientData = pydicom.dcmread(fileName)
-        modality = patientData[0x0008,0x0060].value 
-        if "STRUCT" in modality:
-            structFiles.append(fileName)  
+        try:
+            patientData = pydicom.dcmread(fileName)
+            modality = patientData[0x0008,0x0060].value 
+            if "STRUCT" in modality:
+                structFiles.append(fileName)  
+        except:
+             pass    
+        
     #structsMeta = dcmread(structFile).data_element("ROIContourSequence")
     _, roiNumber, fileNum = FindStructure(structFiles, organ)   
     
@@ -503,9 +567,6 @@ def GetDICOMContours(patientName, organ, path):
                         pointListy = np.array([x,y,z])   
                     numContourPoints+=1       
                 contours[-1] = tempContour            
-
-    with open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName  + "_ExistingContours.txt")), "wb") as fp:
-        pickle.dump(contours, fp)  
     return contours
 
 
@@ -629,6 +690,7 @@ def AllowedToMatch(s1, s2):
     keywords.append("gtv")
     keywords.append("ctv")
     keywords.append("avoid")
+    keywords.append("ORG_")
 
 
     

@@ -56,16 +56,16 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
+    model.load_state_dict(torch.load(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     model = model.to(device)    
     contoursList = [] #The 1d contours list to be returned
     existingContoursList = []
     
     #Make a list for all the contour images
-    try: 
-        CTs = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + patientName + "_Processed.txt")), 'rb'))  
-    except:
-        CTs = DicomParsing.GetPredictionCTs(patientName, path)
+    # try: 
+    #     CTs = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + patientName + "_Processed.txt")), 'rb'))  
+    # except:
+    CTs = DicomParsing.GetPredictionCTs(patientName, path)
     if tryLoad:
         try:
             contourImages, contours = pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName + "_predictedContours.txt")),'rb'))      
@@ -150,34 +150,23 @@ def GetContours(organ, patientName, path, threshold, modelType, withReal = True,
     existingContours = []
     
     if withReal:
-        try:
-            existingContours= pickle.load(open(os.path.join(path, str("Predictions_Patients/" + organ + "/" + patientName + "_ExistingContours.txt")), "rb"))  
-            for layer_idx in range(len(existingContours)):
-                if len(existingContours[layer_idx]) > 0:
-                    for point_idx in range(len(existingContours[layer_idx])):
-                        x = existingContours[layer_idx][point_idx][0]
-                        y = existingContours[layer_idx][point_idx][1]
-                        z = existingContours[layer_idx][point_idx][2]     
-                        existingContoursList.append(x)
-                        existingContoursList.append(y)
-                        existingContoursList.append(z)
-        except: 
-            existingContours = DicomParsing.GetDICOMContours(patientName, organ, path)
-            for layer_idx in range(len(existingContours)):
-                if len(existingContours[layer_idx]) > 0:
-                    for point_idx in range(len(existingContours[layer_idx])):
-                        x = existingContours[layer_idx][point_idx][0]
-                        y = existingContours[layer_idx][point_idx][1]
-                        z = existingContours[layer_idx][point_idx][2]
-                        existingContoursList.append(x)
-                        existingContoursList.append(y)
-                        existingContoursList.append(z)
+
+        existingContours = DicomParsing.GetDICOMContours(patientName, organ, path)
+        for layer_idx in range(len(existingContours)):
+            if len(existingContours[layer_idx]) > 0:
+                for point_idx in range(len(existingContours[layer_idx])):
+                    x = existingContours[layer_idx][point_idx][0]
+                    y = existingContours[layer_idx][point_idx][1]
+                    z = existingContours[layer_idx][point_idx][2]
+                    existingContoursList.append(x)
+                    existingContoursList.append(y)
+                    existingContoursList.append(z)
 
     if plot==True:    
         Test.PlotPatientContours(contours, existingContours)
-    return contoursList, existingContoursList, contours, existingContours     
+    return contours, existingContours, contoursList, existingContoursList     
 
-def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeList, withReal = True, tryLoad=True, plot=True,save=True): 
+def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeList, withReal = True, tryLoad=True, plot=False,save=True): 
     """Calls the GetContours function to predict contours for each organ 
        in organList using a pretrained model and then plots all of the 
        predicted contours.
@@ -210,17 +199,53 @@ def GetMultipleContours(organList, patientName, path, thresholdList, modelTypeLi
 
     """
 
-    contours = []
-    existingContours = []
-    contoursList = []
 
+    if len(modelTypeList) == 1 and len(organList) > 1:
+        for i in range(1, len(organList)):
+            modelTypeList.append(modelTypeList[0])        
 
+    if thresholdList == None:
+        thresholdList = []
+        for o, organ in enumerate(organList):
+            modelType = modelTypeList[o]
+            try:  
+                bestThresFile = open(str(os.path.join(os.getcwd(), "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "")) + "_Thres.txt"), "r")   
+                thresholdList.append(float(bestThresFile.read()))
+                bestThresFile.close()              
+                print("\nthreshold loaded for " + modelType + " " + organ + " predictions")
+            except: 
+                thresholdList.append(Test.BestThreshold(organ, path, modelType))
+    elif len(thresholdList) == 1 and len(organList) > 1:
+        for i in range(1, len(organList)):
+            thresholdList.append(thresholdList[0])            
+
+    
+    if type(patientName) == list: #if more than one patient
+        for patient in patientName:
+            contours = []
+            existingContours = []
+            contoursList = []
+            for i, organ in enumerate(organList): 
+                print("\nPredicting contours for the " + organ + " with the threshold " + str(thresholdList[i]))
+                combinedContours = GetContours(organ,patient,path, modelType = modelTypeList[i], threshold = thresholdList[i], withReal=withReal, tryLoad=tryLoad, plot = False) 
+                contoursList.append(combinedContours[0])
+                contours = contours + combinedContours[0]
+                existingContours = existingContours + combinedContours[1]
+
+            if save == True:
+                DicomSaving.SaveToDICOM(patient, organList, path, contoursList)
+
+            if plot == True: 
+                Test.PlotPatientContours(contours, existingContours)
+        return contours, existingContours    
+
+    #else if just one patient
     for i, organ in enumerate(organList): 
         print("\nPredicting contours for the " + organ + " with the threshold " + str(thresholdList[i]))
         combinedContours = GetContours(organ,patientName,path, modelType = modelTypeList[i], threshold = thresholdList[i], withReal=withReal, tryLoad=tryLoad, plot = False) 
-        contoursList.append(combinedContours[2])
-        contours = contours + combinedContours[2]
-        existingContours = existingContours + combinedContours[3]
+        contoursList.append(combinedContours[0])
+        contours = contours + combinedContours[0]
+        existingContours = existingContours + combinedContours[1]
 
     if save == True:
         DicomSaving.SaveToDICOM(patientName, organList, path, contoursList)

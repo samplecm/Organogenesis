@@ -18,6 +18,7 @@ import DicomParsing
 from scipy.spatial import ConvexHull
 import copy
 import statistics
+import onnxruntime
 
 
 def ThresholdRescaler(organ, modelType, path):
@@ -31,8 +32,7 @@ def ThresholdRescaler(organ, modelType, path):
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
-    model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
+    model.load_state_dict(torch.load(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))  
     #model.eval()
     #go through every file in validation set and look for mask images
     validationPath = os.path.join(path, "Processed_Data", str(organ +"_Val"))
@@ -76,10 +76,10 @@ def ThresholdRescaler(organ, modelType, path):
     std = np.std(maskPredictions)
 
     #Now the intercept is the difference between the 0 and the statistic value.
-    intercept = - medianVal  + std/2
+    intercept = - medianVal  + std*0.3
     print("Calculated intercept for model to be " + str(intercept))
     saveFileName = modelType.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
-    with open(os.path.join(path, "Models/ScalingFactors", saveFileName ), 'wb') as pick:
+    with open(os.path.join(path, "Models/", organ, "Scaling_Factors", saveFileName ), 'wb') as pick:
         pickle.dump(intercept, pick)    
     print("Finished.")    
     return intercept
@@ -89,7 +89,7 @@ def ThresholdRescaler(organ, modelType, path):
 
 
 
-def Process(prediction, threshold, modelType, organ):
+def Process(prediction, threshold, modelType, organ, path=None):
     """Performs a sigmoid and filters the prediction to a given threshold.
 
     Args:
@@ -102,18 +102,28 @@ def Process(prediction, threshold, modelType, organ):
     #first apply the rescaling intercept
     saveFileName = modelType.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
     try:
-        with open(os.path.join(os.getcwd(), "Models/ScalingFactors", saveFileName ), 'rb') as fp:
+        with open(os.path.join(os.getcwd(), "Models", organ, "Scaling_Factors", saveFileName ), 'rb') as fp:
             intercept = pickle.load(fp)
     except: 
         intercept = ThresholdRescaler(organ, modelType, path=None)
-        with open(os.path.join(os.getcwd(), "Models/ScalingFactors", saveFileName ), 'wb') as fp:
+        with open(os.path.join(os.getcwd(),"Models", organ, "Scaling_Factors", saveFileName ), 'wb') as fp:
             pickle.dump(intercept, fp)
 
 
     prediction += intercept    
     prediction = sigmoid(prediction)
-    
+    if threshold == None:
+        try:  
+            bestThresFile = open(str(os.path.join(os.getcwd(), "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "")) + "_Thres.txt"), "r")   
+            threshold = float(bestThresFile.read())
+            bestThresFile.close()
+            
+            print("\nBest threshold of " + str(threshold) + " loaded for " + modelType + " " + organ + " predictions")
+        except: 
+            threshold = Test.BestThreshold(organ, path, modelType)
+
     prediction = FilterContour(prediction, threshold)
+
     
     return prediction
 
@@ -356,48 +366,11 @@ def FixContours(orig_contours):
 
     contourSlices.sort()
     contourSlices = FilterIslands(contourSlices)
-    # i = 0
-    # while i < len(contourSlices)-1:
-    #     nextSlice_dist = contourSlices[i+1]-contourSlices[i]
-    #     if nextSlice_dist > 1:
-    #         try:
-    #             contours[contourSlices[i]+1] =  InterpolateContour(contours[contourSlices[i]], contours[contourSlices[i+1]], nextSlice_dist)
-    #             contourSlices.insert(i+1, contourSlices[i] + 1)
-    #         except:
-    #             pass    
-    #     else:
-    #         i+=1    
-    
-    contours = ValidateSlices(contours)
-    #  #also, if there is 3 or less points on a plane with a slice in either direction with more than 8 and less than 3 slices away, interpolate
-    
-    # i = 0
-    # while i < len(contourSlices)-1:
-    #     if len(contours[contourSlices[i]]) <= 4:
-    #         dist = 0 #distance to next slice on top with more than 8 points (if left at 0, just leave)
-    #         try:
-    #             if len(contours[contourSlices[i+1]])>8:
-    #                 dist = 1
-    #             elif len(contours[contourSlices[i+2]])>8:
-    #                 dist = 2
-    #             elif len(contours[contourSlices[i+3]])>8:
-    #                 dist = 3
-    #         except:
-    #             pass     
-    #         #make sure the slice below has more points, or else no point
-    #         try:
-    #             if dist != 0 and len(contours[contourSlices[i-1]])>8:
-    #                 contours[contourSlices[i]] = InterpolateContour(contours[contourSlices[i-1]], contours[contourSlices[i + dist]], dist+1)
-    #             elif dist != 0 and len(contours[contourSlices[i-2]])>8:
-    #                 contours[contourSlices[i]] = InterpolateContour(contours[contourSlices[i-2]], contours[contourSlices[i + dist]], dist+2)   
-    #         except:
-    #             print("Error interpolating in FixContours function.")
-    #             exit()         
-    #     i+=1
+    for idx in range(len(contours)):
+        if idx not in contourSlices:
+            contours[idx] = []
+    contours = ValidateSlices(contours) 
         
-
-        
-    #print(contourSlices)
     return contours
     
 
@@ -533,17 +506,19 @@ def ValidateSlices(contours):
             else:
                 #if can't interpolate to a good slice, delete contour
                 contours[i] = []   
+                areas[i] = 0
         else:
-            contours[i] = []         
+            contours[i] = []    
+            areas[i] = 0     
 
     #now do another loop through, and if any given slice is less than 30% of area directly on top and below it, interpolate.
     for i in range(1, len(contours)-1):
         area = areas[i]
         if area != 0: 
-            if areas[i-1] > area / 0.3 and areas[i+1] > area / 0.3:
+            if areas[i-1] > area / 0.4 and areas[i+1] > area / 0.4:
                 new_contour = InterpolateContour(contours[i-1], contours[i+1], 2, dist=1)
                 contours[i] = new_contour
-            elif areas[i-1] * 1.5 < area  and areas[i+1] * 1.5 < area:
+            elif areas[i-1] * 1.5 < area and areas[i-1] > 0  and areas[i+1] * 1.5 < area and areas[i+1] > 0:
                 new_contour = InterpolateContour(contours[i-1], contours[i+1], 2, dist=1)
                 contours[i] = new_contour    
                 
@@ -623,10 +598,12 @@ def Export_To_ONNX(organ):
             to be converted
 
     """
-    model = Model.UNet()
+    path = os.getcwd()
+    modelType = "MultiResUnet"
+    model = Model.MultiResUNet()
     #if the model is not UNet switch to MultiResUNet
     try: 
-        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + organ.replace(" ", "") + ".pt")))  
+        model.load_state_dict(torch.load(os.path.join(path, "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt")))
     except Exception as e: 
         if "Missing key(s) in state_dict:" in str(e): #check if it is the missing keys error
             model = Model.MultiResUNet()
@@ -646,7 +623,7 @@ def Export_To_ONNX(organ):
 
     try:
         session = onnxruntime.InferenceSession(os.path.join(pathlib.Path(__file__).parent.absolute(), "Models/Model_" + organ.replace(" ", "") + ".onnx"))
-    except (InvalidGraph, TypeError, RuntimeError) as e:
+    except (TypeError, RuntimeError) as e:
         raise e
 def Infer_From_ONNX(organ, patient):    
     """Predicts organ masks using an ONNX model and plots slices for viewing. 
@@ -1000,3 +977,7 @@ def GetPointsAtZValue(contours, zValue):
                 break
 
     return pointsList
+
+if __name__ == "__main__":
+
+    Export_To_ONNX("Left Tubarial")
