@@ -6,5 +6,7 @@ SavedImages/
 Patient_Files/
 Models/
 __pycache__/
-*.sqlite
-*.suo
+*.sqlite/
+*.suo/
+data/
+Training_jpegs/
