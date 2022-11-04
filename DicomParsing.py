@@ -1,3 +1,4 @@
+from logging import exception
 import numpy as np 
 import pydicom
 from pydicom import dcmread
@@ -11,7 +12,9 @@ from PIL import Image, ImageDraw
 from operator import itemgetter
 import matplotlib.pyplot as plt
 import open3d as o3d
+from scipy.ndimage.filters import gaussian_filter
 import random
+import shutil
 from fastDamerauLevenshtein import damerauLevenshtein
 
     
@@ -51,7 +54,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False, c
 
     if fold!=None:
         if cross_val==False:
-            print("Warning: cross_val is false but a non-None fold has been specified.")       
+            raise exception("Warning: cross_val is false but a non-None fold has been specified.")       
 
     #get the list of patient folders
     patientFoldersRaw = sorted(os.listdir(filesFolder))
@@ -126,7 +129,7 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False, c
 
     else: 
     #Loop through the patients
-        print("Beginning search for eligible training patients.")
+        print(f"Searching for patients with {organ} contours.")
         for p in range(len(patientFolders)):
             patient = sorted(glob.glob(os.path.join(filesFolder, patientFolders[p], "*")))
             #get the RTSTRUCT dicom file and get patient 's CT scans: 
@@ -391,7 +394,9 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False, c
 
             if save == True:             
                 if zSlice < 10:
-                    sliceText = "0" + str(zSlice)
+                    sliceText = "00" + str(zSlice)
+                elif zSlice < 100:
+                    sliceText = "0" + str(zSlice)    
 
                 if preSorted == True: 
 
@@ -431,10 +436,90 @@ def GetTrainingData(filesFolder, organ, path, sortData=False, preSorted=False, c
             #     with open(os.path.join(path, str(testContourBoolPath + "_" + sliceText + ".txt")), "wb") as fp:
             #  
             #           pickle.dump(contourOnPlane[zSlice], fp)  
+    
+    
     val_list = [] 
     for idx in val_indices:
         val_list.append(patientFolders[idx])
-    return val_list            
+    return val_list      
+
+
+def GetTrainingData_Tubarial(patients_folder, path, cross_val=False, fold=None):
+    
+    #first process left and right tubarial data as normally 
+    val_list = GetTrainingData(patients_folder, "Left Tubarial", path, cross_val=cross_val, fold=fold)
+    val_list = GetTrainingData(patients_folder, "Right Tubarial", path, cross_val=cross_val, fold=fold)
+
+    print("Sorting Tubarial Data")
+    trainImagePath = os.path.join(path, "Processed_Data", "Tubarial") 
+    valImagePath = os.path.join(path, "Processed_Data", "Tubarial_Val")  
+
+    trainImagePath_right = os.path.join(path, "Processed_Data", "Right Tubarial") 
+    valImagePath_right = os.path.join(path, "Processed_Data", "Right Tubarial_Val")  
+
+    trainImagePath_left = os.path.join(path, "Processed_Data", "Left Tubarial") 
+    valImagePath_left = os.path.join(path, "Processed_Data", "Left Tubarial_Val")  
+
+
+    #first delete currently processed files
+    for file in os.listdir(valImagePath):
+        os.remove(os.path.join(valImagePath, file))
+    for file in os.listdir(trainImagePath):
+        os.remove(os.path.join(trainImagePath, file))    
+
+    #now copy the right tubarial data directly into tubarial folder
+    for file in os.listdir(trainImagePath_right):
+        file_path = os.path.join(trainImagePath_right, file)
+        file_destination = os.path.join(trainImagePath, file)
+        shutil.copy(file_path, file_destination)
+
+    for file in os.listdir(valImagePath_right):
+        file_path = os.path.join(valImagePath_right, file)
+        file_destination = os.path.join(valImagePath, file)
+        shutil.copy(file_path, file_destination)   
+
+    #left tubarial data needs to be flipped horizontally     
+    for file in os.listdir(trainImagePath_left):
+        file_path = os.path.join(trainImagePath_left, file)
+        file_destination = os.path.join(trainImagePath, str("l_" + file))
+        data = pickle.load(open(file_path, "rb"))
+
+        # print("before")
+        # if np.amax(data[0][1,:,:]) > 0:
+        #     fig, axs = plt.subplots(2)
+        #     axs[0].imshow(data[0][0,:,:])
+        #     axs[1].imshow(data[0][1,:,:])
+        #     plt.show()
+
+        data[0] = np.flip(data[0], 2)    #flip the order of the columns 
+
+        # print("After")
+        # if np.amax(data[0][1,:,:]) > 0:
+            # fig, axs = plt.subplots(2)
+            # axs[0].imshow(data[0][0,:,:])
+            # axs[1].imshow(data[0][1,:,:])
+            # plt.show()
+
+        with open(file_destination, "wb") as fp:
+            pickle.dump(data, fp)
+
+    for file in os.listdir(valImagePath_left):
+        file_path = os.path.join(valImagePath_left, file)
+        file_destination = os.path.join(valImagePath, str("l_" + file))
+        data = pickle.load(open(file_path, "rb"))
+        data[0] = np.flip(data[0], 2)    #flip the order of the columns 
+        
+        with open(file_destination, "wb") as fp:
+            pickle.dump(data, fp)        
+
+    return val_list
+
+
+
+
+
+
+
 
 def GetPredictionCTs(patientName, path):
     """Processes CT images for a given patient from a dicom file and saves them

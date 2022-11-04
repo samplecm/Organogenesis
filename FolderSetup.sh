@@ -70,6 +70,9 @@ fi
 if [ ! -d "Left Tubarial" ]; then
   mkdir "Left Tubarial"
 fi
+if [ ! -d "Tubarial" ]; then
+  mkdir "Tubarial"
+fi
 
 
 cd ../
@@ -400,6 +403,18 @@ if [ ! -d "Left Tubarial_Val" ]; then
 fi
 if [ ! -d "Left Tubarial bools" ]; then
   mkdir "Left Tubarial bools"
+fi
+if [ ! -d "Tubarial" ]; then
+  mkdir "Tubarial"
+fi
+if [ ! -d "Tubarial_Test" ]; then
+  mkdir "Tubarial_Test"
+fi
+if [ ! -d "Tubarial_Val" ]; then
+  mkdir "Tubarial_Val"
+fi
+if [ ! -d "Tubarial bools" ]; then
+  mkdir "Tubarial bools"
 fi
 
 cd ../

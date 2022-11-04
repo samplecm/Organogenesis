@@ -36,6 +36,7 @@ organOps ={
     "Optic Nerves": re.compile(r"opti?c?(-|_| )?nerv?e?"),
     "Left Tubarial": re.compile(r"le?f?t?(-|_| )?(tub)a?r?i?a?l?"),
     "Right Tubarial": re.compile(r"ri?g?h?t?(-|_| )?(tub)a?r?i?a?l?"),
+    "Tubarial": re.compile(r"(tub)a?r?i?a?l?"),
     "All": re.compile(r"all")
 }
 #Create a list of possible functions
@@ -53,7 +54,7 @@ def main():
     print("------------------")
 
     #Keep a list of available structures for training/predicting
-    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "Left Submandibular", "Right Submandibular", "Brainstem","Left Tubarial", "Right Tubarial", "All"] 
+    OARs = ["Body", "Spinal Cord", "Oral Cavity", "Left Parotid", "Right Parotid", "Left Submandibular", "Right Submandibular", "Brainstem","Left Tubarial", "Right Tubarial", "Tubarial", "All"] 
 
     #Need to get user input. Make a string to easily ask for a number corresponding to an OAR.
     ChooseOAR_string = "Please enter the number(s) for the organ(s) you wish to contour / train a model for. Separate the numbers with spaces \n>>"
@@ -94,27 +95,27 @@ def main():
     chooseTask_string += "\n5. Plot predicted masks"
     chooseTask_string += "\n6. Threshold Rescaling"
     chooseTask_string += "\n7. Get Volume Stats" 
-    chooseTask_string += "\n8. Plot Training Masks \n>>" 
+    chooseTask_string += "\n8. Plot Training Masks"
+    chooseTask_string += "\n9. Cross Validation" 
+    chooseTask_string += "\n10.Check Cross Validation Stats\n>>" 
     
     while True: #get user input
         try:
             task = int(input(chooseTask_string))
-            if (task in range(0,9)):
+            if (task in range(0,11)):
                 break
         except KeyboardInterrupt:
             quit()
         except: pass   
 
     if (task == 1):
-        # Train.Train(chosenOARs[0], 15, 1e-3, path=None, processData=False, loadModel=False, modelType = "MultiResUNet", sortData=False, preSorted=False)
-        # Test.BestThreshold(chosenOARs[0],500)
-        #Train.CrossValidate("Left Tubarial", 15, 1e-4, path=None, model_type='MultiResUNet', continue_previous=False)
-        Train.CrossValidate(chosenOARs[0], 15, 1e-4, path=None, model_type='MultiResUNet', continue_previous=False)
+        Train.Train(chosenOARs[0], 15, 1e-3, path=None, processData=False, loadModel=False, modelType = "MultiResUNet", sortData=False, preSorted=False)
+        Test.BestThreshold(chosenOARs[0],500)
          
         Test.TestPlot(chosenOARs[0], path=None, threshold=0.5, modelType = "MultiResUNet") 
 
     elif task == 2:    
-        Predict.GetMultipleContours(chosenOARs,["CT_170336", "CT_170530", "CT_173347"] ,path = None,  thresholdList = [0.5], modelTypeList = ["multiresunet"], withReal=True, tryLoad=False, save=True) 
+        Predict.GetMultipleContours(chosenOARs,["CT_142932"] ,path = None,  thresholdList = [None], modelTypeList = ["multiresunet"], withReal=True, tryLoad=False, save=True) 
         
     elif task == 3:
         Test.BestThreshold(chosenOARs[0], path=None, modelType = "multiresunet")
@@ -123,15 +124,37 @@ def main():
         print([F_Score, recall, precision, accuracy, haussdorffDistance])
         
     elif task == 5:
-        Test.TestPlot(chosenOARs[0], path=None, threshold=0.6, modelType = "MultiResUNet") 
+        Test.TestPlot(chosenOARs[0], path=None, threshold=None, modelType = "MultiResUNet") 
         #Test.PercentStats(chosenOARs[0], path = None)
     elif task == 6:
         PostProcessing.ThresholdRescaler(chosenOARs[0], modelType = "MultiResUNet", path=None)  
-        Test.TestPlot(chosenOARs[0], path=None, threshold=0.5, modelType = "MultiResUNet")    
+        Test.TestPlot(chosenOARs[0], path=None, threshold=None, modelType = "MultiResUNet")    
     elif task == 7:
         Test.GetTrainingVolumeStats(chosenOARs[0], path=None)    
     elif task == 8:
         Test.PlotTrainingMasks(chosenOARs, path=None)    
+    elif task == 9:
+        #delete old predicted files:
+        for patient in os.listdir(os.path.join(os.getcwd(), "Patient_Files")):
+            path = os.path.join(os.getcwd(), "Patient_Files", patient)
+            patient_files = os.listdir(path)
+            for file in patient_files:
+                if "org" in file.lower():
+                    os.remove(os.path.join(path, file))
+                    print(f"removed {file}")
+        #Train.CrossValidate("Left Tubarial", 20, lr=1e-3, path=None, model_type='MultiResUNet', continue_previous=False, starting_epoch=0)
+        #Train.CrossValidate("Right Tubarial", 20, lr=1e-3, path=None, model_type='MultiResUNet', continue_previous=False)   
+        Train.CrossValidate("Tubarial", 20, lr=1e-4, path=None, model_type='MultiResUNet', continue_previous=True)   
+    elif task == 10:
+        for patient in os.listdir(os.path.join(os.getcwd(), "Patient_Files")):
+            path = os.path.join(os.getcwd(), "Patient_Files", patient)
+            patient_files = os.listdir(path)
+            for file in patient_files:
+                if "org" in file.lower():
+                    os.remove(os.path.join(path, file))
+                    print(f"removed {file}")
+        Train.Check_Cross_Validation_Stats("Tubarial", epochs=20, path=None, model_type='MultiResUNet')     
+
                 
 
 if __name__ == "__main__":
@@ -141,7 +164,7 @@ if __name__ == "__main__":
         description="Organogenesis: an open source program for autosegmentation of medical images"
     )
     parser.add_argument('-o', "--organs", help="Specify organ(s) to train/evaluate a model for or predict/generate contours with. Include a single space between organs. \
-        Please choose from:\n body, \n brain, \n brainstem, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \n right-parotid, \n left-parotid, \n spinal-cord,\n right-submandibular, \n left-submandibular, \n right-tubarial, \n left-tubarial,\n all\n", nargs = '+', default=None, type = str)
+        Please choose from:\n body, \n brain, \n brainstem, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \n right-parotid, \n left-parotid, \n spinal-cord,\n right-submandibular, \n left-submandibular, \n right-tubarial, \n left-tubarial, tubarial, \n all\n", nargs = '+', default=None, type = str)
     parser.add_argument('-f', "--function", help = "Specify the function to be performed. Options include \"Train\": to train a model for predicting the specified organ, \
         \"GetContours\": to obtain predicted contours for a patient, \"BestThreshold\": to find the best threhold for maximizing a model's F score, \"GetEvalData\": to calculate the F score, recall, precision, accuracy and 95th percentile Haussdorff distance for the given organ's model, \
         \"PlotMasks\": to plot 2d CTs with both manually drawn and predicted masks for visual comparison", default=None, type=str)
@@ -167,8 +190,8 @@ if __name__ == "__main__":
     n_args = sum([ 1 for a in v.values( ) if a])
 
 
-    if (n_args == 0):
-        main()
+    # if (n_args == 0):
+    #     main()
 
     print("Welcome to Organogenesis")
     print("------------------")
@@ -195,7 +218,7 @@ if __name__ == "__main__":
         while True: #get user input
             organMatch = False 
             try:
-                organsSelected = input("\nInvalid or no organ(s) specified. Please specify the organ(s) that you wish to train/evaluate a model for or predict/generate contours with separated by a single space.\n\nPlease choose from: \n body, \n brain, \n brainstem, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \n right-parotid, \n left-parotid, \n spinal-cord,\n right-submandibular, \n left-submandibular, \n all\n>")
+                organsSelected = input("\nPlease specify the organ(s) that you wish to train/evaluate a model for or predict/generate contours with separated by a single space.\n\nPlease choose from: \n body, \n brain, \n brainstem, \n brachial-plexus, \n chiasm, \n esophagus, \n globes, \n larynx, \n lens, \n lips, \n mandible, \n optic-nerves, \n oral-cavity, \n right-parotid, \n left-parotid, \n spinal-cord,\n right-submandibular, \n left-submandibular, \n right-tubarial, \n left-tubarial, \n tubarial, \n all\n>")
                 organs = list(organsSelected.split(" "))
                 organsList = []
                 for i, organ in enumerate(organs): 

@@ -19,6 +19,10 @@ from scipy.spatial import ConvexHull
 import copy
 import statistics
 import onnxruntime
+from PIL import Image, ImageDraw, ImageFilter
+from shapely.geometry.polygon import Polygon
+from scipy.ndimage.filters import gaussian_filter
+from sklearn.preprocessing import Binarizer
 
 
 def ThresholdRescaler(organ, modelType, path):
@@ -28,6 +32,7 @@ def ThresholdRescaler(organ, modelType, path):
     if path==None: #if a path to data was not supplied, assume that patient data has been placed in the Patient_Files folder in the current directory. 
         path = pathlib.Path(__file__).parent.absolute() 
     maskPredictions = []
+    all_predictions = []
     if modelType.lower() == "unet":
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
@@ -45,7 +50,7 @@ def ThresholdRescaler(organ, modelType, path):
     numCompleted = 0
     for image in dataFiles:
 
-        if numCompleted % 10 == 0:
+        if numCompleted % 100 == 0:
             print("Finished " + str(numCompleted) + "/" + str(numFiles))
         numCompleted = numCompleted + 1
         data = pickle.load(open(os.path.join(validationPath, image), 'rb'))
@@ -69,19 +74,29 @@ def ThresholdRescaler(organ, modelType, path):
         #filter out any pixels that aren't in the mask
         maskPixels = y * prediction[0,0,:,:]
         nonZeroVals = maskPixels[np.nonzero(maskPixels)]
-        for val in nonZeroVals:
-            maskPredictions.append(val)
-        
-    medianVal = np.median(maskPredictions)
-    std = np.std(maskPredictions)
+
+        all_vals = prediction[np.nonzero(prediction)]
+
+        maskPredictions.extend(nonZeroVals)
+        all_predictions.extend(all_vals)
+    # min_val = np.percentile(all_predictions,99)
+    # max_val = np.amax(all_predictions)
+    # #hist_masks, bins_masks = np.histogram(maskPredictions, bins=np.linspace(-15, max_val+2, 100))
+    # hist_all, bins_all = np.histogram(all_predictions, bins=np.linspace(-15, max_val+2, 100))
+    # fig, axs = plt.subplots()
+    # axs = plt.stairs(hist_all, bins_all)
+    # #axs = plt.stairs(hist_masks, bins_masks)
+    # plt.show()
+    tenth_percentile = np.percentile(maskPredictions, 35)
+    #std = np.std(maskPredictions)
 
     #Now the intercept is the difference between the 0 and the statistic value.
-    intercept = - medianVal  + std*0.3
+    intercept = - tenth_percentile  #+ std*0.3
     print("Calculated intercept for model to be " + str(intercept))
     saveFileName = modelType.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
     with open(os.path.join(path, "Models/", organ, "Scaling_Factors", saveFileName ), 'wb') as pick:
         pickle.dump(intercept, pick)    
-    print("Finished.")    
+    print("Saved intercept to " + str(os.path.join(path, "Models/", organ, "Scaling_Factors", saveFileName )))    
     return intercept
 
 
@@ -89,34 +104,38 @@ def ThresholdRescaler(organ, modelType, path):
 
 
 
-def Process(prediction, threshold, modelType, organ, path=None):
+def Process(prediction, threshold, modelType, organ, path=None, intercept=None):
     """Performs a sigmoid and filters the prediction to a given threshold.
 
     Args:
         prediction (2D numpy array): an array of the predicted pixel values 
         threshold (float) : the cutoff for deciding if a pixel is 
             an organ (assigned a 1) or not (assigned a 0)
-
+        modelType: type of network architecture used (needed for loading intercept, threshold)
+        organ (str): type of organ model being processed (needed for loading intercept, threshold)   
     """
-    
+    if path== None:
+        path = os.getcwd()
+
     #first apply the rescaling intercept
     saveFileName = modelType.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
-    try:
-        with open(os.path.join(os.getcwd(), "Models", organ, "Scaling_Factors", saveFileName ), 'rb') as fp:
-            intercept = pickle.load(fp)
-    except: 
-        intercept = ThresholdRescaler(organ, modelType, path=None)
-        with open(os.path.join(os.getcwd(),"Models", organ, "Scaling_Factors", saveFileName ), 'wb') as fp:
-            pickle.dump(intercept, fp)
+    if intercept == None:
+        try:
+            with open(os.path.join(path, "Models", organ, "Scaling_Factors", saveFileName ), 'rb') as fp:
+                intercept = pickle.load(fp)
+        except: 
+            intercept = ThresholdRescaler(organ, modelType, path=None)
+            with open(os.path.join(path,"Models", organ, "Scaling_Factors", saveFileName ), 'wb') as fp:
+                pickle.dump(intercept, fp)
 
 
     prediction += intercept    
     prediction = sigmoid(prediction)
     if threshold == None:
         try:  
-            bestThresFile = open(str(os.path.join(os.getcwd(), "Models/Model_" + modelType.lower() + "_" + organ.replace(" ", "")) + "_Thres.txt"), "r")   
-            threshold = float(bestThresFile.read())
-            bestThresFile.close()
+
+            threshold = pickle.load(open(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"), "rb")) 
+
             
             print("\nBest threshold of " + str(threshold) + " loaded for " + modelType + " " + organ + " predictions")
         except: 
@@ -197,7 +216,7 @@ def FilterContour(image, threshold):
         filteredImage (2D numpy array): the binary mask
 
     """
-    return np.where(image > threshold, 1, 0)
+    return np.where(image >= threshold, 1, 0)
 
 def FilterBackground(image, threshold):
     """Creates a binary mask of the background of the image. Pixels below the 
@@ -344,7 +363,7 @@ def FixContours(orig_contours):
     if maxLength == 0:
         raise ContourPredictionError
 
-    #orig_contours is currently in a ridiculous nested data structure. so fix it first. 
+    #orig_contours is currently in a nested data structure. so fix it first. 
     contours = []
     for plane in orig_contours:
         planePoints = []
@@ -356,23 +375,49 @@ def FixContours(orig_contours):
     #take in a list of all CT images, and check for slices which are false negatives. 
     
     #Make a list of all contour incices which have a contour on them:
-    contourSlices = []
-    idx = 0
-    while idx < len(contours):
-        contour = contours[idx]
-        if len(contours[idx]) > 0:
-            contourSlices.append(idx)
-        idx+=1    
+    # contourSlices = []
+    # idx = 0
+    # while idx < len(contours):
+    #     contour = contours[idx]
+    #     if len(contours[idx]) > 0:
+    #         contourSlices.append(idx)
+    #     idx+=1    
 
-    contourSlices.sort()
-    contourSlices = FilterIslands(contourSlices)
-    for idx in range(len(contours)):
-        if idx not in contourSlices:
-            contours[idx] = []
-    contours = ValidateSlices(contours) 
+    # contourSlices.sort()
+    # contourSlices = FilterIslands(contourSlices)
+    # for idx in range(len(contours)):
+    #     if idx not in contourSlices:
+    #         contours[idx] = []
+    # contours = ValidateSlices(contours) 
         
     return contours
+
+def Process_Masks(predictions):
+     #Make a list of all indices which have a mask on them:
+    print("Processing patient mask list.")
+    mask_slices = []
+    xLen = predictions[0].shape[0]
+    yLen = predictions[0].shape[1]
+    for p, prediction in enumerate(predictions):
+        if np.amax(prediction) == 1:
+            mask_slices.append(p)
+    mask_slices = FilterIslands(mask_slices)
+    for idx in range(len(predictions)):
+        if idx not in mask_slices:
+            predictions[idx] = np.zeros((xLen, yLen))
+    predictions = Validate_Masks(predictions) 
     
+    # mask_slices = []
+    # for p, prediction in enumerate(predictions):
+    #     if np.amax(prediction) == 1:
+    #         mask_slices.append(p)
+    # for idx in mask_slices:      
+    #     fig, axs = plt.subplots(1,1)
+    #     axs.imshow(predictions[idx])
+    #     plt.show()
+    #     plt.close()
+    #     print("")
+    return predictions    
 
 def InterpolateContour(contour1, contour2, totalDistance, dist=1):
     """Creates a linearly interpolated contour slice between contours1 and contours2. 
@@ -463,6 +508,168 @@ def InterpolatePoint(point1, point2, totalDistance, distance=1):
 
     return [x,y]
 
+def Validate_Masks(predictions):
+    """Goes over predicted masks for a patient and fixes detected abnormalities by interpolating
+
+    Args:
+      predictions (list): a list of numpy binary arrays for each CT slice organ mask. 
+
+    """
+
+    num_mask_pixels = [] #list for each slice
+    for prediction in predictions:
+        mask_pixels = prediction > 0
+        num_mask_pixels.append(len(prediction[mask_pixels]))
+    median_size = statistics.median(filter(lambda pixels: pixels > 0, num_mask_pixels))
+    cut_off_size = 0.05 * median_size
+     #first look for slices with <5% median area which have one below and on top which are greater than 0 
+    slice_below=False
+    last_good_slice = None #keep track of index of last good slice   
+    for i, slice in enumerate(predictions):
+        pixels = num_mask_pixels[i]
+        if pixels > cut_off_size:
+            slice_below=True
+            last_good_slice=i
+        elif slice_below==True: #inadequate size
+            next_good_slice=None
+            for j in range(i+1, min(i+4, len(predictions))):
+                if num_mask_pixels[j] > cut_off_size:
+                    next_good_slice = j
+                    break
+            if next_good_slice != None and next_good_slice-last_good_slice < 5:
+                slices_separation = next_good_slice - last_good_slice
+                new_mask = InterpolateMask(predictions[last_good_slice], predictions[next_good_slice], slices_separation, i-last_good_slice)
+                new_mask_pixels = len(new_mask[new_mask > 0])
+                num_mask_pixels[i] = new_mask_pixels
+                predictions[i] = new_mask
+                last_good_slice = i
+            else:
+                #if can't interpolate to a good slice, delete contour
+               predictions[i] = np.zeros((predictions[0].shape[0], predictions[0].shape[1])) 
+               num_mask_pixels[i] = 0
+
+
+
+    return predictions        
+
+def InterpolateMask(mask1, mask2, separation, position):
+    """Interpolates between two binary masks which are apart by a given separation, at the specified position from the first mask.
+    
+    """
+
+    y_len = mask1.shape[0]
+    x_len = mask1.shape[1]
+
+    new_mask = np.zeros(mask1.shape)
+    binarizer = Binarizer(threshold=0.49)
+    binarizer2 = Binarizer(threshold=0.3)
+    for y_idx in range(y_len):
+        for x_idx in range(x_len):
+            new_mask[y_idx, x_idx] = mask1[y_idx,x_idx] + position/separation * mask2[y_idx, x_idx]
+
+    blurred_mask = gaussian_filter(new_mask,sigma=1)
+    thres_image_blur = binarizer.fit_transform(blurred_mask) 
+    return thres_image_blur
+
+    # blurred_mask = gaussian_filter(new_mask,sigma=3)
+    # thres_image_1 = binarizer2.fit_transform(new_mask)
+    # thres_image_blur = binarizer.fit_transform(blurred_mask) 
+    # fig, axs = plt.subplots(2, 2)
+    # axs[0,0].imshow(new_mask)
+    # axs[0,1].imshow(blurred_mask)
+    # axs[1,0].imshow(thres_image_1)
+    # axs[1,1].imshow(thres_image_blur)
+    # plt.show()
+    # print("")
+
+    # #first get avg x, y of each mask (in terms of pixel number)
+    # pixels_1 = []
+    # pixels_2 = []
+    # pixels_1_x = []
+    # pixels_1_y = []
+    # pixels_2_x = []
+    # pixels_2_y = []
+
+    # for slice in mask1:
+    #     if np.amax(slice) == 0:
+    #         continue
+    #     non_zero_indices = np.where(slice==1)
+    #     for idx in range(len(non_zero_indices[0])):
+    #         pixels_1.append([non_zero_indices[0][idx], non_zero_indices[1][idx]])
+    #         pixels_1_x.append(non_zero_indices[1][idx])
+    #         pixels_1_y.append(non_zero_indices[0][idx])
+    # for slice in mask2:
+    #     if np.amax(slice) == 0:
+    #         continue
+    #     non_zero_indices = np.where(slice==1)
+    #     for idx in range(len(non_zero_indices[0])):
+    #         pixels_2.append([non_zero_indices[0][idx], non_zero_indices[1][idx]])
+    #         pixels_2_x.append(non_zero_indices[1][idx])
+    #         pixels_2_y.append(non_zero_indices[0][idx])
+    
+    # #now interpolate between the two. 
+    # #first divide points from each into quarters in terms of x val and y val
+    # mask1_x_percentiles = [np.percentile(pixels_1_x, 25), np.percentile(pixels_1_x, 50), np.percentile(pixels_1_x, 75)]
+    # mask1_y_percentiles = [np.percentile(pixels_1_y, 25), np.percentile(pixels_1_y, 50), np.percentile(pixels_1_y, 75)]
+    # mask2_x_percentiles = [np.percentile(pixels_2_x, 25), np.percentile(pixels_2_x, 50), np.percentile(pixels_2_x, 75)]
+    # mask2_y_percentiles = [np.percentile(pixels_2_y, 25), np.percentile(pixels_2_y, 50), np.percentile(pixels_2_y, 75)]
+
+    # mask1_divisions = [] #divide into 16 groups , 4 divisions of x and 4 of y, based on percentile range its in
+    # mask2_divisions = []
+    # for i in range(4):
+    #     mask1_divisions.append([[],[], [],[]])
+    #     mask2_divisions.append([[],[],[],[]])
+    # for point in pixels_1:
+    #     y_idx = 0
+    #     for i in range(3):
+    #         if point[0] > mask1_y_percentiles[i]:
+    #             y_idx = i+1
+    #             break
+    #     x_idx =0    
+    #     for i in range(3):
+    #         if point[1] > mask1_x_percentiles:
+    #             x_idx = i+1
+    #             break
+    #     mask1_divisions[y_idx, x_idx].append(point)
+
+    # for point in pixels_2:
+    #     y_idx = 0
+    #     for i in range(3):
+    #         if point[0] > mask2_y_percentiles[i]:
+    #             y_idx = i+1
+    #             break
+    #     x_idx = 0    
+    #     for i in range(3):
+    #         if point[1] > mask2_x_percentiles:
+    #             x_idx = i+1
+    #             break
+    #     mask2_divisions[y_idx, x_idx].append(point)   
+    # #now get the closest point to each point in mask1 , in the same division in mask2
+    # new_contour = []
+    # for div_y in range(len(mask1_divisions)):
+    #     for div_x in range(len(mask1_divisions)):
+    #         for point in mask1_divisions[div_y][div_x]:
+    #             closest_point = None
+    #             closest_dist = 10000
+    #             for point_2 in mask2_divisions[div_y][div_x]:
+    #                 dist = (point_2[0]-point[0])**2+ (point_2[1]-point[1])**2
+    #                 if dist < closest_dist:
+    #                     closest_dist = dist
+    #                     closest_point = copy.copy(point[2])
+    #             new_contour.append(closest_point)        
+    # mask_image = Image.new('L', (y_len, x_len), 0 )
+    # mask_polygon = Polygon(new_contour)
+    # mask_image = ImageDraw.Draw(mask_image).polygon(mask_polygon, outline= 1, fill = 1)
+    # mask_array = np.array(mask_image)
+    # return mask_image
+
+
+
+
+
+        
+
+
 def ValidateSlices(contours):
     """Checks the area of contour slices, and interpolates when abnormally small slices are surrounded by two larger areas,
 
@@ -478,7 +685,7 @@ def ValidateSlices(contours):
         areas.append(Area_of_Slice(slice))  
     areas_end = areas[338:len(areas)-1]  
     median_area = statistics.median(filter(lambda area: area > 0, areas))
-    cutoff_area = 0.05 * median_area
+    cutoff_area = 0.03 * median_area
     #first look for slices with <5% median area which have one below and on top which are greater than 0 
     slice_below=False
     last_good_slice = None #keep track of index of last good slice   
@@ -554,7 +761,7 @@ def FilterIslands(slices):
 
     maxGap, maxGapIndex = MaxGap(slices)
     #return largest half on either side of maxGap        
-    if maxGap >= 5:
+    if maxGap >= 4:
         if max(maxGapIndex,len(slices)-maxGapIndex) == maxGapIndex: #bottom half largest: 
             newSlices = slices[0:maxGapIndex]
         else:

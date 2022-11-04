@@ -1,6 +1,8 @@
+from turtle import distance
 import numpy as np 
 import matplotlib.pyplot as plt
-from numpy.lib.function_base import average, percentile 
+from numpy.lib.function_base import average, percentile
+
 import Model
 import Predict
 import DicomParsing
@@ -167,6 +169,27 @@ def TestPlot(organ, path, threshold, modelType):
         model = Model.UNet()
     elif modelType.lower() == "multiresunet": 
         model = Model.MultiResUNet()
+    if threshold == None:
+        try:  
+
+            with open(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"), "rb") as fp:  
+                threshold = pickle.load(fp)
+
+            
+            print("\nBest threshold of " + str(threshold) + " loaded for " + modelType + " " + organ + " predictions")
+        except: 
+            threshold = BestThreshold(organ, path, modelType)    
+
+    saveFileName = modelType.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
+
+    try:
+        with open(os.path.join(path, "Models", organ, "Scaling_Factors", saveFileName ), 'rb') as fp:
+            intercept = pickle.load(fp)
+    except: 
+        intercept = PostProcessing.ThresholdRescaler(organ, modelType, path=None)
+        with open(os.path.join(path,"Models", organ, "Scaling_Factors", saveFileName ), 'wb') as fp:
+            pickle.dump(intercept, fp)
+
     model.load_state_dict(torch.load(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
     model = model.to(device)    
     dataPath = 'Processed_Data/' + organ + "_Val/"
@@ -180,7 +203,6 @@ def TestPlot(organ, path, threshold, modelType):
         data = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))
         if np.amax(data[0][1,:,:]) == 0:
             continue
-        #print(np.amax(data[0][1,:,:]))
         x = torch.from_numpy(data[0][0, :, :])
         y = torch.from_numpy(data[0][1, :,:])
         
@@ -208,21 +230,16 @@ def TestPlot(organ, path, threshold, modelType):
         
         #predictedContour = PostProcessing.MaskToContour(prediction[0,0,:,:])
         #contour = PostProcessing.MaskToContourImage(y[0,0,:,:])
-        axs[0,0].imshow(ROIOnImage)
-        axs[0,0].set_title("Original Image")
+        axs[0,0].imshow(x[0,0,:,:], cmap="gray")
+        axs[0,0].set_title(str("Original Image " + dataFiles[d]))
         #axs[0,1].hist(predictionRaw[0,0,:,:], bins=5)
-        axs[0,1].imshow(maskOnImage)
+        axs[0,1].imshow(maskOnImage, cmap="gray")
         axs[0,1].set_title("Mask on Image")
-        axs[1,0].imshow(y[0,0, :,:])
+        axs[1,0].imshow(y[0,0, :,:], cmap="gray")
         axs[1,0].set_title("Original Mask")
-        axs[1,1].imshow(prediction)
+        axs[1,1].imshow(prediction, cmap="gray")
         axs[1,1].set_title("Predicted Mask")
 
-        
-        # axs[2,0].imshow(y[0,1, :,:], cmap = "gray")
-        # axs[2,0].set_title("Original Background")
-        # axs[2,1].imshow(prediction[0,1, :,:], cmap = "gray")
-        # axs[2,1].set_title("Predicted Background")
         plt.show()
         
 def GetMasks(organ, patientName, path, threshold, modelType):
@@ -334,7 +351,7 @@ def NormalizeImage(image):
     amin = np.amin(image)
     return (image - amin) / ptp    
 
-def BestThreshold(organ, path, modelType, test_size=1000):
+def BestThreshold(organ, path, modelType, val_list, intercept=None):
     """Determines the best threshold for predicting contours based on the 
        F score. Displays graphs of the accuracy, false positives, false
        negatives, and F score vs threshold. Also saves these stats to the
@@ -373,21 +390,17 @@ def BestThreshold(organ, path, modelType, test_size=1000):
     filesRange = list(range(len(dataFiles)))
     random.shuffle(filesRange)
 
-    accuracies = [] #make a list of average accuracies calculated using different thresholds
-    recalls = []
-    precisions = []
+
     f_scores = []
 
-    thresholds = np.linspace(0.3, 0.7, 15)
+    thresholds = np.linspace(0.1, 0.6, 8)
     
     for thres in thresholds:
         print("\nChecking Threshold: %0.3f"%(thres))
-        files_max = test_size
-        F_Score, recall, precision, accuracy = FScore(organ, path,thres, modelType,test_size=files_max)
+        F_Score, recall, precision, accuracy = FScore(organ, path,thres, modelType, val_list=val_list[0:3], intercept=intercept)
         f_scores.append(F_Score)
-        recalls.append(recall)
-        precisions.append(precision)
-        accuracies.append(accuracy)
+      
+        print(f"F Score for threshold = {thres}: {F_Score}")
         
     #Now need to determine what the best threshold to use is. Also plot the accuracy, FP, FN, F score:
     # fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 10))
@@ -412,53 +425,13 @@ def BestThreshold(organ, path, modelType, test_size=1000):
     bestThreshold = thresholds[best_index] 
     print(f"Best threshold found: {thresholds[best_index]}")
     #save this threshold
-    thresFile = open(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"),'w')
-    thresFile.write(str(bestThreshold))
-    thresFile.close()
+    with open(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"),'wb') as fp:
+        pickle.dump(bestThreshold, fp)
    
     print(f"best threshold: {bestThreshold}")    
     return bestThreshold
 
 
-
-    # numPoints = 0
-    # #turn contours into separate x,y,z lists of lists
-    # X = []
-    # Y = []
-    # Z = []
-    # for layer_idx in range(len(contours)):
-    #     if len(contours[layer_idx]) > 0:
-    #         X.append([])
-    #         Y.append([])
-    #         Z.append([])
-    #         for point_idx in range(len(contours[layer_idx])):
-    #             x = contours[layer_idx][point_idx][0]
-    #             y = contours[layer_idx][point_idx][1]
-    #             z = layer_idx * 2.5
-    #         X[-1].append(x)
-    #         Y[-1].append(y)
-    #         Z[-1].append(z)  
-   
-
-    # print(numPoints)              
-
-
-    # fig = graph_objects.Figure(data=[graph_objects.Mesh3d(x=pointList[:,0], y = pointList[:,1], z = pointList[:,2], alphahull=5, opacity=0.5, color='cyan')])
-    # fig.update_xaxes(title_text="x")
-    # fig.update_yaxes(title_text="y")
-    # fig.update_xaxes(range=[0,512])
-    # fig.update_yaxes(range=[0,512])
-
-    # fig.show()
-    # fig = plt.figure() 
-    # ax = fig.add_subplot(111, projection='3d')
-    # cset = ax.contour(X,Y,Z, cmap=cm.coolwarm)
-    # ax.clabel(cset, fontsize=9, inline=1)
-    # plt.show() 
-    # pointCloud.colors = o3d.utility.Vector3dVector(pointList[:,3:6]/255)
-    # pointCloud.normals = o3d.utility.Vector3dVector(pointList[:,6:9])
-    
-    #Now need to make a numpy array as a list of points
 
 def PlotPatientContours(contours, existingContours):
     """Plots the contours provided.   
@@ -515,7 +488,72 @@ def PlotPatientContours(contours, existingContours):
     pointCloud.points = o3d.utility.Vector3dVector(pointList[:,:3])
     o3d.visualization.draw_geometries([pointCloud])
 
-def FScore(organ, path, threshold, modelType, test_size=None):
+def Jaccard_Score(organ, path, threshold, modelType, val_list, intercept=None):
+    if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
+        path = pathlib.Path(__file__).parent.absolute()   
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("\nDevice being used for computing F Score: " + device.type)
+    if modelType.lower() == "unet":
+        model = Model.UNet()
+    elif modelType.lower() == "multiresunet": 
+        model = Model.MultiResUNet()
+    model.load_state_dict(torch.load(os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))) 
+    model = model.to(device)
+    #model = model.eval()
+    print("\nCalculating Jaccard Index for the " + modelType + " " + organ + " model")
+    union_count = 0
+    intersection_count = 0  
+    for patient in val_list:
+        data_lists = Get_Processed_Patient(patient, organ, path)
+        for data_list in data_lists:
+            predictions = []
+            y_values = []
+            for data in data_list:
+                x = torch.from_numpy(data[0,:,:])
+                xLen, yLen = x.shape
+                y = data[1, :, :]
+                y_values.append(y)
+                xLen, yLen = x.shape
+                #need to reshape 
+                x = torch.reshape(x, (1,1,xLen,yLen)).float()
+                x = x.to(device)        
+                x = torch.reshape(x, (1,1,xLen,yLen)).float()
+                y = y
+                y =np.reshape(y, (xLen, yLen))
+                predictionRaw = (model(x)).cpu().detach().numpy()
+                predictionRaw = np.reshape(predictionRaw, (xLen, yLen))
+                prediction = PostProcessing.Process(predictionRaw, threshold, modelType, organ, intercept=intercept)
+                predictions.append(prediction)
+                
+            predictions = PostProcessing.Process_Masks(predictions)   
+            assert len(y_values) == len(predictions), "length of ground truth mask list is different than length of predictions list"  
+
+            for idx, prediction in enumerate(predictions):
+                y = y_values[idx]
+                
+                if np.amax(prediction) == 0 and np.amax(y) == 0:
+                    continue
+                # print(np.amax(y))
+                # print(np.amax(prediction))
+                # fig, axs = plt.subplots(1,2)
+                # axs[0].imshow(predictions[idx])
+                # axs[1].imshow(y)
+                # plt.show()
+                # plt.close()
+                for x_idx in range(xLen):
+                    for y_idx in range(yLen):
+                        if prediction[x_idx,y_idx] == 1:
+                            union_count += 1
+                            if y[x_idx,y_idx] == 1:
+                                intersection_count += 1                           
+                        elif y[x_idx,y_idx] == 1:     
+                            union_count += 1                         
+                 
+    jaccard = intersection_count / union_count
+    return jaccard
+
+
+def FScore(organ, path, threshold, modelType, val_list, intercept=None):
     """Computes the F score, accuracy, precision, and recall for a model
        on a given organ. Uses the validation data. 
 
@@ -545,67 +583,83 @@ def FScore(organ, path, threshold, modelType, test_size=None):
     model = model.to(device)
     #model = model.eval()
     dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(path, dataPath)
-    data_files = sorted(os.listdir(dataFolder))
-    d = 0
+    # dataFolder = os.path.join(path, dataPath)
+    # data_files = sorted(os.listdir(dataFolder))
+    # d = 0
     print("\nCalculating Fscore Statistics for the " + modelType + " " + organ + " model")
     TP = 0
     FP = 0
     FN = 0
+    total_points = 0
+    for p, patient in enumerate(val_list):
+        data_lists = Get_Processed_Patient(patient, organ, path)
+        
+        for data_list in data_lists:
+            predictions = []
+            y_values = []
 
-    xLen,yLen = [0,0]
-    if type(test_size) == int:
-        num_files = min(test_size, len(data_files))
-    else:
-        num_files = len(data_files)    
-    while d < num_files:
-        numStack = min(10, num_files - 1 - d) 
-        p = 0
-        concatList = []
-        while p < numStack:
-            imagePath = data_files[d]
-            image = pickle.load(open(os.path.join(dataFolder, imagePath), 'rb'))[0][:]
-            image = image.reshape((2,1,image.shape[2], image.shape[2]))
-            concatList.append(image)
-            p+=1
-            d+=1
-        if len(concatList) == 0:
-            break    
-        data = np.concatenate(concatList, axis=1)  
-        numSlices = data.shape[1]
-        for sliceNum in range(numSlices):
-            x = torch.from_numpy(data[0, sliceNum, :, :])
-            y = torch.from_numpy(data[1, sliceNum, :,:])
-            x = x.to(device)
-            y = y.to(device)
-            xLen, yLen = x.shape
-                        #need to reshape 
-            x = torch.reshape(x, (1,1,xLen,yLen)).float()
-            y = y.cpu().detach().numpy()
-            y =np.reshape(y, (xLen, yLen))
- 
-            predictionRaw = (model(x)).cpu().detach().numpy()
-            predictionRaw = np.reshape(predictionRaw, (xLen, yLen))
-            prediction = PostProcessing.Process(predictionRaw, threshold, modelType, organ)
-            for x_idx in range(xLen):
-                for y_idx in range(yLen):
-                    if prediction[x_idx,y_idx] == 1:
-                        if y[x_idx,y_idx] == 1:
-                            TP += 1
-                        else:
-                            FP += 1
-                    elif y[x_idx,y_idx] == 1:     
-                        FN += 1           
-        print("Finished " + str(d) + " out of " + str(num_files) + " contours...")                     
-    totalPoints = d * xLen * yLen                    
+            for data in data_list:
+                x = torch.from_numpy(data[0,:,:])
+                xLen, yLen = x.shape
+                y = data[1, :, :]        
+                #need to reshape 
+                x = torch.reshape(x, (1,1,xLen,yLen)).float()
+                x = x.to(device)        
+                y =np.reshape(y, (xLen, yLen))
+                y_values.append(y)
+                predictionRaw = (model(x)).cpu().detach().numpy()
+                predictionRaw = np.reshape(predictionRaw, (xLen, yLen))
+                prediction = PostProcessing.Process(predictionRaw, threshold, modelType, organ, intercept=intercept)
+                predictions.append(prediction)
+                # if np.amax(prediction) == 1 or np.amax(y) == 1:
+                #     fig, axs = plt.subplots(2)
+                #     axs[0].imshow(prediction)
+                #     axs[1].imshow(y)
+                #     plt.show()
+                
+            predictions = PostProcessing.Process_Masks(predictions)   
+            assert len(y_values) == len(predictions), "length of ground truth mask list is different than length of predictions list"  
+            xLen, yLen = predictions[0].shape
+            non_zero_slices = 0
+            for idx, prediction in enumerate(predictions):
+                y = y_values[idx]
+                if np.amax(prediction) == 0 and np.amax(y) == 0:
+                    continue
+                # fig, axs = plt.subplots(2)
+                # axs[0].imshow(prediction)
+                # axs[1].imshow(y)
+                # plt.show()
+                non_zero_slices += 1    #keep track of how many slices were used for F score calculation
+                temp = y * prediction
+                TP += len(list(temp[np.nonzero(temp)]))
+
+                temp = y * (prediction+1)
+                FN += len(list(temp[np.where(temp == 1)]))
+
+                temp = (y+1) * prediction
+                FP += len(list(temp[np.where(temp == 1)]))
+
+                # for x_idx in range(xLen):
+                #     for y_idx in range(yLen):
+                #         if prediction[x_idx,y_idx] == 1:
+                #             if y[x_idx,y_idx] == 1:
+                #                 TP += 1
+                #             else:
+                #                 FP += 1
+                #         elif y[x_idx,y_idx] == 1:     
+                #             FN += 1       
+            total_points += non_zero_slices * xLen * yLen                       
+        print("Finished " + str(1+p) + " out of " + str(len(val_list)) + " patients...")                     
+                             
     recall = TP / (TP + FN)
     precision = TP / (TP + FP)
     F_Score = 2 / (recall**(-1) + precision ** (-1))
-    accuracy = (totalPoints - FP - FN) / totalPoints
+    accuracy = (total_points - FP - FN) / total_points
   
     return F_Score, recall, precision, accuracy
 
-def HausdorffDistance(organ, path, threshold, modelType):
+
+def HausdorffDistance(organ, path, threshold, modelType, patient_list, intercept=None):
     """Determines the 95th percentile Hausdorff distance for a model 
        with a given organ.
 
@@ -624,57 +678,137 @@ def HausdorffDistance(organ, path, threshold, modelType):
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
 
-    dataPath = 'Processed_Data/' + organ + "_Val/"
-    dataFolder = os.path.join(path, dataPath)
-    dataFiles = sorted(os.listdir(dataFolder))
+    # dataPath = 'Processed_Data/' + organ + "_Val/"
+    # dataFolder = os.path.join(path, dataPath)
+    # dataFiles = sorted(os.listdir(dataFolder))
 
-    patientList = []
+    # patientList = []
     HausdorffDistanceList = []
     patientCount = 0
 
     #want to use the patients in the validation set so get the patient names
-    for file in dataFiles:
-        splitFile = file.split("_")
-        fileName = splitFile[1]
-        for s in range(2, len(splitFile)-1):
-            fileName = fileName + "_" + splitFile[s]
-        if fileName not in patientList:          
-            patientList.append(fileName)
+    # for file in dataFiles:
+    #     splitFile = file.split("_")
+    #     fileName = splitFile[1]
+    #     for s in range(2, len(splitFile)-1):
+    #         fileName = fileName + "_" + splitFile[s]
+    #     if fileName not in patientList:          
+    #         patientList.append(fileName)
 
     print("Calculating Hausdorff Distance for the " + modelType + " " + organ + " model...")
-    if len(patientList) > 20:
-        patientList = patientList[0:21]
-    for patientName in patientList: 
-        predictedContour, existingContour, predictedContourList, existingContourList = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot=False)
+    # if len(patientList) > 20:
+    #     patientList = patientList[0:21]
+    distance_list = []
+    for patientName in patient_list: 
+        predictedContour, existingContour, predictedContourList, existingContourList = Predict.GetContours(organ, patientName, path, threshold, modelType, withReal = True, tryLoad = False, plot=False, intercept=intercept)
         
-        predictedContourArray = np.array(predictedContourList)
-        existingContourArray = np.array(existingContourList)
+        # predictedContourArray = np.array(predictedContourList)
+        # existingContourArray = np.array(existingContourList)
 
-        #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
-        predictedContourArray = predictedContourArray.reshape(int(predictedContourArray.shape[0]/3), 3)
-        existingContourArray = existingContourArray.reshape(int(existingContourArray.shape[0]/3), 3)
+        # #contours are currently stored like this [x1, y1, z1, x2, y2, z2, ...] but want [(x1, y1, z1), (x2, y2, z2), ...] so reshape
+        # predictedContourArray = predictedContourArray.reshape(int(predictedContourArray.shape[0]/3), 3)
+        # existingContourArray = existingContourArray.reshape(int(existingContourArray.shape[0]/3), 3)
 
         #get the maximum Hausdorff distance and add to the list 
-        for i in range(predictedContourArray.shape[0]): 
-            haus1 = directed_hausdorff(np.array([predictedContourArray[i,:]]), existingContourArray)[0]
-            #haus2 = directed_hausdorff(existingContourArray, np.array([predictedContourArray[i,:]]))[0]
-            HausdorffDistanceList.append(haus1)
-        for i in range(existingContourArray.shape[0]): 
-            haus1 = directed_hausdorff(np.array([existingContourArray[i,:]]), predictedContourArray)[0]
-            #haus2 = directed_hausdorff(existingContourArray, np.array([predictedContourArray[i,:]]))[0]
-            HausdorffDistanceList.append(haus1)    
+        # for i in range(predictedContourArray.shape[0]): 
+        #     haus1 = directed_hausdorff(np.array([predictedContourArray[i,:]]), existingContourArray)[0]
+        #     #haus2 = directed_hausdorff(existingContourArray, np.array([predictedContourArray[i,:]]))[0]
+        #     HausdorffDistanceList.append(haus1)
+        # for i in range(existingContourArray.shape[0]): 
+        #     haus1 = directed_hausdorff(np.array([existingContourArray[i,:]]), predictedContourArray)[0]
+        #     #haus2 = directed_hausdorff(existingContourArray, np.array([predictedContourArray[i,:]]))[0]
+        #     HausdorffDistanceList.append(haus1)    
+        
+
+        for slice in predictedContour:
+            if len(slice) == 0:
+                continue
+            for point in slice:
+                x,y,z = point
+                #now check nearest point in existingContours
+                nearest_point = 1000
+                for slice_2 in existingContour:
+                    if len(slice_2) == 0:
+                        continue
+                    for point_2 in slice_2:
+                        x_2,y_2,z_2 = point_2
+                        dist = math.sqrt((x-x_2)**2+(y-y_2)**2+(z-z_2)**2)
+                        if dist < nearest_point:
+                            nearest_point = dist
+                distance_list.append(nearest_point)  
+
+        for slice in existingContour:
+            if len(slice) == 0:
+                continue
+            for point in slice:
+                x,y,z = point
+                #now check nearest point in existingContours
+                nearest_point = 1000
+                for slice_2 in predictedContour:
+                    if len(slice_2) == 0:
+                        continue
+                    for point_2 in slice_2:
+                        x_2,y_2,z_2 = point_2
+                        dist = math.sqrt((x-x_2)**2+(y-y_2)**2+(z-z_2)**2)
+                        if dist < nearest_point:
+                            nearest_point = dist
+                distance_list.append(nearest_point)    
+
 
 
         patientCount += 1
 
-        print("Finished " + str(patientCount) + " out of " + str(len(patientList)) + " patients")
+        print("Finished " + str(patientCount) + " out of " + str(len(patient_list)) + " patients")
 
     #return the 95th percentile Hausdorff distance
-    percentile_haus = np.percentile(np.array(HausdorffDistanceList), 95)
+    percentile_haus = np.percentile(np.array(distance_list), 95)
     return percentile_haus
 
+def Get_Processed_Patient(patient, organ, path):
 
-def GetEvalData(organ, path, threshold, modelType):
+    val_path = os.path.join(path, "Processed_Data", organ + "_Val")   
+    val_files = os.listdir(val_path)
+    val_files.sort()
+
+
+    patient_files = []
+    for file in val_files:
+        if patient in file:
+            patient_files.append(file)
+    patient_files = sorted(patient_files, key=lambda x: int(x.split(".")[0][-3:]))  
+    patient_data = []
+
+
+    if organ != "Tubarial":
+        
+
+        for file in val_files:
+            if patient in file:
+                data = pickle.load(open(os.path.join(val_path, file), "rb"))
+                patient_data.append(data[0])
+              
+        patient_data = [patient_data]        
+    else:
+        #if this is a tubarial model, need to get data for both the inverted-left and right tubarial, separately. 
+        patient_data.append([])    
+        for file in val_files:
+            if patient in file and "l_" not in file:
+                data = pickle.load(open(os.path.join(val_path, file), "rb"))
+                patient_data[-1].append(data[0])  
+     
+        patient_data.append([])
+        for file in val_files:
+            if patient in file and "l_" in file:
+                data = pickle.load(open(os.path.join(val_path, file), "rb"))
+                patient_data[-1].append(data[0])      
+
+    print(f"Collected processed patient data for {patient}")
+    return patient_data
+
+
+
+
+def GetEvalData(organ, path, threshold, modelType, intercept, val_list):
     """Creates a text file containing the hyperparameters of the model, 
        the F score data, and the 95th percentile Hausdorff distance.
 
@@ -686,46 +820,36 @@ def GetEvalData(organ, path, threshold, modelType):
             an organ (assigned a 1) or not (assigned a 0)
         modelType (str): the type of model
 
+        val_list (list): list of patients in the validation set 
+
     """
 
     if path == None: #if no path supplied, assume that data folders are set up as default in the working directory. 
         path = pathlib.Path(__file__).parent.absolute()  
-
-    hausdorffDistance = HausdorffDistance(organ, path, threshold, modelType)
+    hausdorffDistance = HausdorffDistance(organ, path, threshold, modelType, val_list, intercept=intercept)
+    F_Score, recall, precision, accuracy = FScore(organ, path, threshold, modelType, val_list, intercept=intercept)    
+    jaccard_index = Jaccard_Score(organ, path, threshold, modelType, val_list, intercept=intercept)
+    
     hausdorffDistance = float(hausdorffDistance)
 
-    F_Score, recall, precision, accuracy = FScore(organ, path, threshold, modelType)
+    
     print("F Score: " + str(F_Score))
     print("Hausdorff: " + str(hausdorffDistance))
-    
-
-    #create a list of the hyperarameters of the model and the evaluation data
-    evalData= []
-
-    #load the hyperparamaters of the model
-    try:
-        with open(os.path.join(path, "Models/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "rb") as fp:
-            evalData = pickle.load(fp)
-    except:
-        pass        
+    print("Jaccard: " + str(jaccard_index))
         
 
-
-    evalData.append(["F Score", F_Score])
-    evalData.append(["Recall", recall])
-    evalData.append(["Precision", precision])
-    evalData.append(["Accuracy", accuracy])
-    evalData.append(["Threshold", threshold])
-    evalData.append(["95th Percentile Hausdorff Distance", hausdorffDistance])
+    eval_data = {}
+    eval_data["F Score"] = F_Score
+    eval_data["Recall"] = recall
+    eval_data["Precision"] = precision
+    eval_data["Accuracy"] = accuracy
+    eval_data["Threshold"] = threshold
+    eval_data["Hausdorff"] = hausdorffDistance
+    eval_data["Jaccard Score"] = jaccard_index
 
     #save the hyperparamters and F score data for the model 
-    with open(os.path.join(path, "Evaluation Data\EvaluationData_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "w") as fp:
-        for data in evalData:
-            for element in data:
-                fp.write(str(element)+ " ")
-            fp.write('\n')
     
-    return F_Score, recall, precision, accuracy, hausdorffDistance
+    return eval_data
 
 def PercentStats(organ, path):
     """Saves lists of the area and the number of contour points at each percentage 

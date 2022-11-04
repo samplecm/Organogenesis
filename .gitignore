@@ -1,10 +1,11 @@
 
 Loss History/
 Predictions_Patients/
+Evaluation Data/
 Processed_Data/
 SavedImages/
 Patient_Files/
-Models/
+/.vs
 __pycache__/
 *.sqlite/
 *.suo/

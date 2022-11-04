@@ -1,3 +1,4 @@
+from audioop import cross
 import matplotlib.pyplot as plt
 import os
 import shutil
@@ -25,7 +26,112 @@ import re
 import statistics
 import Predict
 
-def CrossValidate(organ, epochs=15, lr=1e-3, path=None, model_type='MultiResUNet', fold=5, dataAugmentation=True, continue_previous=False):
+def Check_Cross_Validation_Stats(organ, epochs=20, path=None, model_type='MultiResUNet', fold=5):
+    """
+        Calculates the statistics from the previous cross validation performed on the specified organ with the specified model type and fold number.
+        organ (str): the organ to check statistics on 
+        path (str): path of the main directory for organogenesis (default None if currently in)
+        model_type (str): type of network architecture used for training
+        fold (int): fold of k-fold cross validation used
+    """
+    #1. Divide the data into the k groups of train/validation data
+
+    if path == None:
+        path = os.getcwd()
+
+    patients_folder = os.path.join(path, "Patient_Files")
+    
+    current_fold=0
+    cross_val_idx=None 
+    while current_fold < fold:
+        current_fold +=1 
+        if organ == "Tubarial":
+            val_list =DicomParsing.GetTrainingData_Tubarial(patients_folder, path, cross_val=True, fold=[fold, current_fold])
+        else:    
+            val_list = DicomParsing.GetTrainingData(patients_folder, organ, path, cross_val=True, fold=[fold, current_fold]) #go through all the dicom files and create the imagesval_list = DicomParsing.GetTrainingData(patients_folder, organ, path, cross_val=True, fold=[fold, current_fold]) #go through all the dicom files and create the images
+        # #val_list = ["CT_140453", "CT_142932", "CT_143029", "CT_143516"] 
+        #val_list = ["CT_140453"]
+        #val_list = ["CT_163329"]
+        #val_list = ["CT_151203"]
+
+        if model_type.lower() == "unet":
+            model = Model.UNet()
+        elif model_type.lower() == "multiresunet": 
+            model = Model.MultiResUNet()
+
+        epoch_val=epochs-1   
+        loaded=False 
+        while epoch_val > 0 and loaded == False:
+
+            try:
+                model_path = os.path.join(path, "Models", organ, "CV_Models", str("Model_" + model_type.lower() + "_" + organ.replace(" ", "") + "_" + "CV" + str(current_fold) + "_" + str(epoch_val) + ".pt"))    
+                model.load_state_dict(torch.load(model_path))
+                loaded = True
+            except:
+                epoch_val -= 1    
+        torch.save(model.state_dict(), os.path.join(path, "Models", organ, "Model_" + model_type.lower() + "_" + organ.replace(" ", "") + ".pt"))
+
+        
+
+        intercept = ThresholdRescaler(organ, model_type, path=None)
+        #save intercept for cross val
+        saveFileName = str(current_fold) + model_type.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
+        with open(os.path.join(path, "Models", organ, "Scaling_Factors", saveFileName ), 'wb') as pick:
+            pickle.dump(intercept, pick) 
+
+        thres = Test.BestThreshold(organ, path, model_type, val_list, intercept=intercept)
+        with(open(os.path.join(path, "Models", organ, "Scaling_Factors", str(current_fold) + model_type.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"),'wb')) as fp:
+            pickle.dump(thres, fp)
+
+  
+        eval_data = Test.GetEvalData(organ,path,thres, model_type, intercept, val_list)
+        f_score = eval_data["F Score"] 
+        haus = eval_data["Hausdorff"]
+        jaccard = eval_data["Jaccard Score"]
+        eval_data_path = os.path.join(path, "Models", organ, "Statistics","Eval_Data", "Eval_Data_CV" + str(current_fold) + ".txt")
+        with open(eval_data_path, "wb") as fp:
+            pickle.dump(eval_data, fp)
+        #save the list of validation files used in the current fold
+        with open(os.path.join(path, "Models", organ, "CV_Models", str(current_fold) + "_val_list"), "wb") as fp:
+            pickle.dump(val_list, fp)    
+
+        print(f'CV{current_fold}: F-Score: {f_score} ; H: {haus} ; J: {jaccard}')    
+    
+    #load all the f scores and hausdorff distances and take average
+    eval_path = os.path.join(path, "Models", organ, "Statistics","Eval_Data")
+
+    eval_files = os.listdir(eval_path)
+    f_scores = [] #dice similarity coefficient 
+    hauses = [] #95th percentile Hausdorff
+    jacs = [] #jaccard index
+    for f in eval_files:
+        with open(os.path.join(eval_path, f), "rb") as fp:
+            score = pickle.load(fp)
+            f_scores.append(score["F Score"])
+            jacs.append(score["Jaccard Score"])
+            hauses.append(score["Hausdorff"])
+        
+               
+    avg_f = statistics.mean(f_scores)
+    avg_h = statistics.mean(hauses)
+    avg_j = statistics.mean(jacs)
+    std_f = statistics.stdev(f_scores)
+    std_h = statistics.stdev(hauses)
+    std_j = statistics.stdev(jacs)
+
+    eval_stats = {}
+    eval_stats["F_Score"] = [avg_f, std_f, f_scores]
+    eval_stats["Hausdorff"] = [avg_h, std_h, hauses]
+    eval_stats["Jaccard"] = [avg_j, std_j, jacs]
+    eval_path = os.path.join(path, "Models", organ, "Statistics", "Eval_Stats" + ".txt")
+
+    with open(eval_path, "wb") as fp:
+        pickle.dump(eval_stats, fp)
+  
+
+    print(f"CV Results: \n F-Score: {avg_f} += {std_f} \n 95 percentile Hausdorff distance: {avg_h} += {std_h}\n Jaccard Index: {avg_j} +- += {std_j}")  
+
+def CrossValidate(organ, epochs=15, lr=1e-3, path=None, model_type='MultiResUNet', fold=5, data_augmentation=True, continue_previous=False):
     """
         Performs a k-fold cross validation of the selected model type and organ.
          folds are created by linear iteration through N / k groups of patients, 
@@ -38,92 +144,102 @@ def CrossValidate(organ, epochs=15, lr=1e-3, path=None, model_type='MultiResUNet
             dataAugmentation (bool): True if augmentation transforms are to be applied during training
 
     """
-    #1. Divide the data into the k groups of train/validation data
+    
 
-    train_groups = []
-    val_groups = []
+
     if path == None:
         path = os.getcwd()
 
-    patients_folder = os.path.join(path, "Patient_Files")
-    f_scores = []
-    hauses = []
-    current_fold=0
-    cross_val_idx=None 
+    patients_folder = os.path.join(path, "Patient_Files")    
+
+    current_fold = 0
     first_iter=True
     while current_fold < fold:
         current_fold +=1
-        if continue_previous==True and first_iter==True: 
+        # if current_fold == 2:
+        #     continue
+        if continue_previous and first_iter: 
             #if carrying off on previously started cv, need to see which fold currently on
-            cv_path = models_path = os.path.join(path, "Models", organ, "CV_Models")
+            cv_path = os.path.join(path, "Models", organ, "CV_Models")
             num_files = len(os.listdir(cv_path))
             current_fold = int(num_files / epochs) + 1
-            first_iter=False #ensure this only happens once
-            load = True
-            print(f"continuing cross validation on fold {current_fold} and epoch {num_files % epochs}")
-        else:
-            load=False    
+            
+            print(f"continuing cross validation on fold {current_fold} and epoch {num_files % epochs}") 
+
         print(f"Beginning fold # {current_fold}")
-        val_list = DicomParsing.GetTrainingData(patients_folder, organ, path, cross_val=True, fold=[fold, current_fold]) #go through all the dicom files and create the images
-        #Train(organ,epochs,lr, path, modelType=model_type, processData=False, cross_val_idx=current_fold, loadModel=load)
-        #temp
+        if organ == "Tubarial":
+            val_list =DicomParsing.GetTrainingData_Tubarial(patients_folder, path, cross_val=True, fold=[fold, current_fold])
+        else:    
+            val_list = DicomParsing.GetTrainingData(patients_folder, organ, path, cross_val=True, fold=[fold, current_fold]) #go through all the dicom files and create the images
+
+
+        if continue_previous and first_iter:
+            Train(organ,epochs,lr, path, modelType=model_type, processData=False, dataAugmentation=data_augmentation, cross_val_idx=current_fold, loadModel=True)
+            first_iter=False #ensure this only happens once
+        else:
+            Train(organ,epochs,lr, path, modelType=model_type, processData=False, dataAugmentation=data_augmentation, cross_val_idx=current_fold, loadModel=False)
+        epoch_val=epochs-1   
+        #save the model to the main folder so its there to compute intercept 
+        model_path = os.path.join(path, "Models", organ, "CV_Models", str("Model_" + model_type.lower() + "_" + organ.replace(" ", "") + "_" + "CV" + str(current_fold) + "_" + str(epoch_val) + ".pt"))    
         if model_type.lower() == "unet":
             model = Model.UNet()
         elif model_type.lower() == "multiresunet": 
             model = Model.MultiResUNet()
-        epoch_val=epochs-1    
-        model_path = os.path.join(path, "Models", organ, "CV_Models", str("Model_" + model_type.lower() + "_" + organ.replace(" ", "") + "_" + "CV" + str(current_fold) + "_" + str(epoch_val) + ".pt"))    
         model.load_state_dict(torch.load(model_path))
         torch.save(model.state_dict(), os.path.join(path, "Models", organ, "Model_" + model_type.lower() + "_" + organ.replace(" ", "") + ".pt"))
-        ##
 
-        intercept = ThresholdRescaler(organ, modelType = "MultiResUNet", path=None)
+        intercept = ThresholdRescaler(organ, model_type, path=None)
         #save intercept for cross val
         saveFileName = str(current_fold) + model_type.lower() + "_" + organ.replace(" ", "") + "_rescale_intercept.txt" 
-        with open(os.path.join(path, "Models/", organ, "CV_Models", saveFileName ), 'wb') as pick:
+        with open(os.path.join(path, "Models/", organ, "Scaling_Factors", saveFileName ), 'wb') as pick:
             pickle.dump(intercept, pick) 
-        thres = Test.BestThreshold(organ, path, model_type, test_size=700)
-        with(open(os.path.join(path, "Models", organ, "CV_Models", str(current_fold) + "Model_" + model_type.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"),'wb')) as fp:
+        thres = Test.BestThreshold(organ, path, model_type, val_list, intercept=intercept)
+        with(open(os.path.join(path, "Models", organ, "Scaling_Factors", str(current_fold) + model_type.lower() + "_" + organ.replace(" ", "") + "_Thres.txt"),'wb')) as fp:
             pickle.dump(thres, fp)
+  
+        #Predict.GetMultipleContours([organ], val_list ,path = None,  thresholdList = [thres]*len(val_list), modelTypeList = ["multiresunet"]*len(val_list), withReal=False, tryLoad=False, save=True)
+        eval_data = Test.GetEvalData(organ,path,thres, model_type, val_list)
+        f_score = eval_data["F Score"] 
+        haus = eval_data["Hausdorff"]
+        jaccard = eval_data["Jaccard Score"]
+        eval_data_path = os.path.join(path, "Models", organ, "Statistics","Eval_Data", "Eval_Data_CV" + str(current_fold) + ".txt")
+        with open(eval_data_path, "wb") as fp:
+            pickle.dump(eval_data, fp)
 
-        Predict.GetMultipleContours([organ], val_list ,path = None,  thresholdList = [thres]*len(val_list), modelTypeList = ["multiresunet"]*len(val_list), withReal=False, tryLoad=False, save=True)
-        #f_score, recall, precision, accuracy, haus = Test.GetEvalData(organ,path,thres, modelType=model_type)
-
-        # f_score_path = os.path.join(path, "Models", organ, "Statistics","F_Scores", "F_Score_CV_" + str(current_fold) + ".txt")
-        # haus_path = os.path.join(path, "Models", organ, "Statistics","Hausdorff_Distances", "Haus_CV_" + str(current_fold) + ".txt")      
-        # with open(f_score_path, "wb") as fp:
-        #     pickle.dump(f_score, fp)
-        # with open(haus_path, "wb") as  fp:
-        #     pickle.dump(haus, fp) 
-
-        # print(f'CV{current_fold}: F-Score: {f_score} ; H: {haus}')    
+        print(f'CV{current_fold}: F-Score: {f_score} ; H: {haus} ; J: {jaccard}')    
     
     #load all the f scores and hausdorff distances and take average
-    # f_path = os.path.join(path, "Models", organ, "Statistics","F_Scores")
-    # h_path = os.path.join(path, "Models", organ, "Statistics","Hausdorff_Distances")
-    # f_files = os.listdir(f_path)
-    # h_files = os.listdir(h_path)
+    eval_path = os.path.join(path, "Models", organ, "Statistics","Eval_Data")
 
-    # for f in f_files:
-    #     with open(os.path.join(f_path, f), "rb") as fp:
-    #         score = pickle.load(fp)
-    #         f_scores.append(score)
-    # for h in h_files:
-    #     with open(os.path.join(h_path, h), "rb") as fp:
-    #         score = pickle.load(fp)
-    #         hauses.append(score)     
+    eval_files = os.listdir(eval_path)
+    f_scores = [] #dice similarity coefficient 
+    hauses = [] #95th percentile Hausdorff
+    jacs = [] #jaccard index
+    for f in eval_files:
+        with open(os.path.join(eval_path, f), "rb") as fp:
+            score = pickle.load(fp)
+            f_scores.append(score["F Score"])
+            jacs.append(score["Jaccard Score"])
+            hauses.append(score["Hausdorff"])
+        
                
-    # avg_f = statistics.mean(f_scores)
-    # avg_h = statistics.mean(hauses)
+    avg_f = statistics.mean(f_scores)
+    avg_h = statistics.mean(hauses)
+    avg_j = statistics.mean(jacs)
+    std_f = statistics.stdev(f_scores)
+    std_h = statistics.stdev(hauses)
+    std_j = statistics.stdev(jacs)
+    eval_stats = {}
+    eval_stats["F_Score"] = [avg_f, std_f, f_scores]
+    eval_stats["Hausdorff"] = [avg_h, std_h, hauses]
+    eval_stats["Jaccard"] = [avg_j, std_j, jacs]
+    eval_path = os.path.join(path, "Models", organ, "Statistics", "Eval_Stats" + ".txt")
 
-    # f_score_path = os.path.join(path, "Models", organ, "Statistics", "Final_F_Score_CV_" + str(current_fold) + ".txt")
-    # haus_path = os.path.join(path, "Models", organ, "Statistics", "Final_Haus_CV_" + str(current_fold) + ".txt")
-    # with open(f_score_path, "wb") as fp:
-    #         pickle.dump([avg_f, f_scores], fp)
-    # with open(haus_path, "wb") as  fp:
-    #     pickle.dump([avg_h, hauses], fp) 
+    with open(eval_path, "wb") as fp:
+            pickle.dump(eval_stats, fp)
+  
 
-    # print(f"CV Results: \n F-Score: {avg_f} \n 95 percentile Hausdorff distance: {avg_h}")    
+    print(f"CV Results: \n F-Score: {avg_f} +- {std_f}\n 95 percentile Hausdorff distance: {avg_h} +-{std_h}\n Jaccard Index: {avg_j}+-{std_j}")    
 
 
 
@@ -215,6 +331,7 @@ def Train(organ,numEpochs,lr, path, modelType, processData=True, loadModel=False
         if type(cross_val_idx) == int:
             models_path = os.path.join(path, "Models", organ, "CV_Models")
             cv_model_files = sorted(os.listdir(models_path))
+            cv_model_files = list(filter(lambda val: f"CV{cross_val_idx}" in val, cv_model_files))
             if len(cv_model_files) > 0:
                 nums = [int(i) for i in cv_model_files[-1] if i.isdigit()]
                 current_epoch = int(str(nums[-2]) + str(nums[-1])) + 1
@@ -223,10 +340,15 @@ def Train(organ,numEpochs,lr, path, modelType, processData=True, loadModel=False
                     #get current epoch:               
                     print(f"loaded model weights for {cv_model_files[-1]}. Continuing training on Epoch {current_epoch}")
                 else: 
-                    current_epoch = 0    
+                    return    #if already fully trained on this fold     
             else:
-                current_epoch = 0    
-            
+                current_epoch = 0   
+
+            # try:
+            #     model.load_state_dict(torch.load(os.path.join(models_path, "Model_multiresunet_" + organ.replace(" ", "") + "_CV" + str(cross_val_idx) + "_" + current_epoch + ".pt" )))      
+            #     print("loaded cv model")
+            # except:
+            #     print(f"Could not find a pre-existing model to load for CV {cross_val_idx} and epoch {current_epoch}...")    
         else:    
             models_path = os.path.join(path, "Models", organ, "Epoch_Models")
             epoch_model_files = sorted(os.listdir(models_path))
@@ -238,7 +360,9 @@ def Train(organ,numEpochs,lr, path, modelType, processData=True, loadModel=False
  
             if type(cross_val_idx) == int:
                 epochLossHistory = pickle.load(open(os.path.join(path, "Models", organ, "CV" + str(cross_val_idx) + "_" + modelType.lower() + "_" + "epochLossHistory" + ".txt"), "rb"))
+                print("Loaded epoch loss history for previous training of cross validation model...")
             else:
+                print("Loaded epoch loss history for previous training of model...")
                 epochLossHistory = pickle.load(open(os.path.join(path, "Models", organ, modelType.lower() + "_" + "epochLossHistory.txt"), 'rb'))  
         except:
             
@@ -264,11 +388,12 @@ def Train(organ,numEpochs,lr, path, modelType, processData=True, loadModel=False
     else:
         transform = None
 
-    print("Beginning first training epoch of a " + modelType + " " + organ + " model")    
+     
     iteration = 0
     #Criterion = F.binary_cross_entropy_with_logits()#nn.BCEWithLogitsLoss() I now just define this in the model
     epoch_range = range(current_epoch, numEpochs)
     for epoch in epoch_range:
+        print(f"Beginning epoch {epoch} of a " + modelType + " " + organ + " model")   
         model.train() #put model in training mode
 
         #creates the training dataset 
@@ -336,7 +461,7 @@ def Train(organ,numEpochs,lr, path, modelType, processData=True, loadModel=False
         else:
             hyperparameters.append(["Data Augmentation", "Off"])
 
-        #save the hyperparameters to a binary file to be used in Test.FScore()
+        #save the hyperparameters
         with open(os.path.join(path, "Models/" + organ + "/HyperParameters_Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".txt"), "wb") as fp:
             pickle.dump(hyperparameters, fp)
 
@@ -367,11 +492,11 @@ def Train(organ,numEpochs,lr, path, modelType, processData=True, loadModel=False
     # torch.save(model.state_dict(), os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))
     
 
-    epoch_val=numEpochs-1
+    epoch_val=str(numEpochs-1)
     if type(cross_val_idx) == int:
-        model_path = os.path.join(path, "Models", organ, "CV_Models", str("Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_" + "CV" + str(cross_val_idx) + "_" + epoch_val + ".pt"))
+        model_path = os.path.join(path, "Models", organ, "CV_Models", str("Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_" + "CV" + str(cross_val_idx) + "_" + str(epoch_val) + ".pt"))
     else:    
-        model_path = os.path.join(path, "Models", organ, "Epoch_Models", str("Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_" + epoch_val + ".pt"))
+        model_path = os.path.join(path, "Models", organ, "Epoch_Models", str("Model_" + modelType.lower() + "_" + organ.replace(" ", "") + "_" + str(epoch_val) + ".pt"))
     model.load_state_dict(torch.load(model_path))
     torch.save(model.state_dict(), os.path.join(path, "Models", organ, "Model_" + modelType.lower() + "_" + organ.replace(" ", "") + ".pt"))
 
