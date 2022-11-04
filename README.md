@@ -145,18 +145,17 @@ For training, a patient’s CT set consisting of DICOM files for each individual
    </td>
   </tr>
   <tr>
-    <td>
-      Right Tubarial
-    </td>
-    <td>
-      UNet
-    </td>
-    <td>
-      0.3
-    </td>
-    <td>
-      0.65
-    </td>
+  <tr>
+   <td>Tubarial
+   </td>
+   <td>MultiResUNet
+   </td>
+   <td>
+   </td>
+   <td>0.65
+   </td>
+  </tr>
+
          
 </table>
 
